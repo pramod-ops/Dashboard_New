@@ -1584,6 +1584,7 @@ function renderDeptPropChart(id, rows) {
         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} (${grandTotal > 0 ? (ctx.raw / grandTotal * 100).toFixed(1) : 0}%)` } },
         datalabels: { display: false }
       },
+      animation: false,
       scales: {
         x: { stacked: true, grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true, ticks: { font: { size: 9 } } },
         y: { stacked: true, grid: { display: false }, ticks: { font: { size: 9 }, color: '#cbd5e1' } }
@@ -1603,7 +1604,9 @@ function renderDeptPropChart(id, rows) {
               const x0 = x.getPixelForValue(cum[i]);
               const x1 = x.getPixelForValue(cum[i] + v);
               const cx = (x0 + x1) / 2;
-              const cy = meta.data[i].y;
+              const props = meta.data[i].getProps ? meta.data[i].getProps(['y'], true) : meta.data[i];
+              const cy = props.y;
+              if (isNaN(cx) || isNaN(cy)) { cum[i] += v; return; }
               ctx.save();
               ctx.fillStyle = '#fff';
               ctx.font = 'bold 9px "Segoe UI",sans-serif';
@@ -1617,10 +1620,12 @@ function renderDeptPropChart(id, rows) {
         });
         const lastMeta = chart.getDatasetMeta(data.datasets.length - 1);
         totals.forEach((t, i) => {
-          if (!t) return;
+          if (!t || !lastMeta.data[i]) return;
           const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : 0;
           const xEnd = x.getPixelForValue(t);
-          const cy   = lastMeta.data[i].y;
+          const lProps = lastMeta.data[i].getProps ? lastMeta.data[i].getProps(['y'], true) : lastMeta.data[i];
+          const cy = lProps.y;
+          if (isNaN(xEnd) || isNaN(cy)) return;
           ctx.save();
           ctx.fillStyle = '#e2e8f0';
           ctx.font = 'bold 10px "Segoe UI",sans-serif';

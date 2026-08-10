@@ -1304,6 +1304,7 @@ openLabel  = (startLabel && !isExcludedMonth(startLabel)) ? startLabel : 'Openin
   document.getElementById('dashboardScreen').style.display = 'block';
   switchTab(isMulti ? 'trends' : 'overview');
   window.scrollTo(0, 0);
+  window._shareData = { rows, or, sr, allOpening, allClosing, allExits, allJoiners, allVol, allCo, allOnNotice, allAvg, allAtt, openLabel, closeLabel, title, periodLabel };
 }
 
 /* ════════ UI HELPERS ════════ */
@@ -1384,46 +1385,35 @@ function buildShareableHTML() {
     .map(ss => { try { return Array.from(ss.cssRules).map(r => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
   const date = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
-  // Helper: capture DOM + chart configs for current rendered state
-  function captureSnap(snapIdx) {
+  // Embed render function sources verbatim — all closures (formatters, grandTotal, segFmt) are preserved
+  const fnDefs = [hex2rgba, groupBy, renderGroupedBar, renderDeptPropChart, renderDoughnutChart].map(f => f.toString()).join('\n\n');
+
+  // Helper: clone DOM for one snapshot and rename canvas IDs for multi-month isolation
+  function cloneDash(snapIdx) {
     const dash = document.getElementById('dashboardScreen').cloneNode(true);
-    const configs = {};
     [...document.getElementById('dashboardScreen').querySelectorAll('canvas')].forEach(cv => {
-      const inst = Chart.getChart(cv);
-      if (!inst) return;
-      const newId = `s${snapIdx}_${cv.id}`;
-      configs[newId] = { type: inst.config.type, data: JSON.parse(JSON.stringify(inst.config.data)), options: JSON.parse(JSON.stringify(inst.config.options)) };
       const cloneCanvas = dash.querySelector(`#${cv.id}`);
-      if (cloneCanvas) { cloneCanvas.id = newId; cloneCanvas.removeAttribute('width'); cloneCanvas.removeAttribute('height'); cloneCanvas.style.cssText = ''; }
+      if (cloneCanvas) { cloneCanvas.id = `s${snapIdx}_${cv.id}`; cloneCanvas.removeAttribute('width'); cloneCanvas.removeAttribute('height'); cloneCanvas.style.cssText = ''; }
     });
     dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(el => el.remove());
-    return { html: dash.innerHTML, configs };
+    return dash.innerHTML;
   }
 
-  // Multi-month: capture configs per snapshot, recreate charts in shared HTML
+  // Multi-month: embed raw data per snapshot + render functions
   if (uploadedMonths.length > 1) {
     const originalIdx = _currentMonthIdx;
     const snaps = [];
     [-1, ...uploadedMonths.map((_, i) => i)].forEach((idx, snapIdx) => {
       selectUploadedMonth(idx);
-      const { html, configs } = captureSnap(snapIdx);
-      snaps.push({ idx, label: idx === -1 ? 'YTD' : uploadedMonths[idx].label, html, configs });
+      const html = cloneDash(snapIdx);
+      snaps.push({ idx, snapIdx, label: idx === -1 ? 'YTD' : uploadedMonths[idx].label, html, data: JSON.parse(JSON.stringify(window._shareData)) });
     });
     selectUploadedMonth(originalIdx);
     updateGlobalMonthSelector();
 
-    const title = document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
+    const title = snaps[snaps.length - 1]?.data?.title || 'Headcount Dashboard';
     const active = Math.max(0, snaps.findIndex(s => s.idx === originalIdx));
-    const allConfigs = {};
-    snaps.forEach(s => Object.assign(allConfigs, s.configs));
-    // Pre-compute label strings for round charts — formatter functions don't survive JSON.stringify
-    Object.values(allConfigs).forEach(cfg => {
-      if (cfg.type === 'doughnut' || cfg.type === 'pie') {
-        const d = (cfg.data.datasets[0]||{}).data||[], t = d.reduce((a,b)=>a+b,0);
-        cfg._dlabels = d.map(v => (t && v > 0 && v !== 1) ? v+'\n('+Math.round(v/t*100)+'%)' : '');
-      }
-    });
-
+    const allData = JSON.stringify(snaps.map(s => s.data));
     const pills = snaps.map((s, i) =>
       `<span class="gmpill${s.idx === -1 ? ' all-m' : ''}${i === active ? ' active' : ''}" onclick="switchSnap(${i})">${s.label}</span>`
     ).join('');
@@ -1440,56 +1430,44 @@ ${snapDivs}
 <div style="text-align:center;padding:12px;font-size:.7rem;color:#94a3b8;">Saved on ${date}</div>
 <script>
 Chart.register(ChartDataLabels);
-var CS=${active},_done={};
-var _cfgs=${JSON.stringify(allConfigs)};
-function _rf(cfg,id){if(cfg._dlabels){var s=cfg._dlabels;if(cfg.options&&cfg.options.plugins&&cfg.options.plugins.datalabels)cfg.options.plugins.datalabels.formatter=function(v,ctx){return s[ctx.dataIndex]||'';};}if(id&&id.endsWith('_chartDeptProp')){var ds=cfg.data&&cfg.data.datasets;if(ds&&ds.length>=2){var d0=ds[0].data||[],d1=ds[1].data||[];var gt=d0.reduce(function(s,v){return s+v;},0)+d1.reduce(function(s,v){return s+v;},0);if(gt>0){var sl=function(v){if(!v||v<=0)return null;var p=v/gt*100;return p>=2?v+' ('+p.toFixed(1)+'%)':null;};var ol=d0.map(sl),fl=d1.map(sl),tl=d0.map(function(v,i){var t=v+(d1[i]||0);if(!t)return null;return t+' ('+(t/gt*100).toFixed(1)+'%)';});if(cfg.options&&cfg.options.plugins)cfg.options.plugins.datalabels={};ds[0].datalabels={display:true,color:'#fff',anchor:'center',align:'center',font:{size:9,weight:'bold',family:'"Segoe UI",sans-serif'},clip:false,formatter:function(v,ctx){return ol[ctx.dataIndex]||null;}};ds[1].datalabels={labels:{segment:{display:true,color:'#fff',anchor:'center',align:'center',font:{size:9,weight:'bold',family:'"Segoe UI",sans-serif'},clip:false,formatter:function(v,ctx){return fl[ctx.dataIndex]||null;}},total:{display:true,color:'#e2e8f0',anchor:'end',align:'right',font:{size:10,weight:'bold',family:'"Segoe UI",sans-serif'},formatter:function(v,ctx){return tl[ctx.dataIndex]||null;}}}}; }}}}
-function initSnap(i){if(_done[i])return;_done[i]=1;Object.entries(_cfgs).filter(([id])=>id.startsWith('s'+i+'_')).forEach(([id,cfg])=>{_rf(cfg,id);var el=document.getElementById(id);if(el)new Chart(el,cfg);});}
-function switchTab(n){var s=document.getElementById('msnap'+CS);if(!s)return;s.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));s.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));var tb=s.querySelector('#tab-'+n);if(tb)tb.classList.add('active');var tp=s.querySelector('#panel-'+n);if(tp)tp.classList.add('active');}
+var chartInstances={},openLabel,closeLabel,_done={},CS=${active};
+var _snapsData=${allData};
+${fnDefs}
+function initSnap(i){if(_done[i])return;_done[i]=1;var d=_snapsData[i];openLabel=d.openLabel;closeLabel=d.closeLabel;var pfx='s'+i+'_';var _or=d.rows.filter(function(r){return r.type==='Onroll';});var _sr=d.rows.filter(function(r){return r.type!=='Onroll';});renderDoughnutChart(pfx+'chartEmpType',d.rows);renderGroupedBar(pfx+'chartLocationOv',groupBy(d.rows,'loc'),'#93c5fd','#1d4ed8');renderDeptPropChart(pfx+'chartDeptProp',d.rows);renderGroupedBar(pfx+'chartOnrollLoc',groupBy(_or,'loc'),'#a5b4fc','#4338ca');renderGroupedBar(pfx+'chartOnrollTeam',groupBy(_or,'team'),'#c4b5fd','#6d28d9');renderGroupedBar(pfx+'chartSupportTeam',groupBy(_sr,'team'),'#7dd3fc','#0369a1');renderGroupedBar(pfx+'chartSupportLoc',groupBy(_sr,'loc'),'#86efac','#15803d');}
 function switchSnap(i){document.querySelectorAll('.msnap').forEach((d,j)=>d.style.display=j===i?'block':'none');document.querySelectorAll('.gmpill').forEach((p,j)=>p.classList.toggle('active',j===i));CS=i;initSnap(i);}
+function switchTab(n){var s=document.getElementById('msnap'+CS);if(!s)return;s.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));s.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));var tb=s.querySelector('#tab-'+n);if(tb)tb.classList.add('active');var tp=s.querySelector('#panel-'+n);if(tp)tp.classList.add('active');}
 function selectTrendMonth(){}function openAddMonthModal(){}
 initSnap(${active});
 <\/script></body></html>`;
   }
 
-  // Single month: interactive charts
+  // Single month: embed raw data + render functions
+  const d = window._shareData;
   const dash = document.getElementById('dashboardScreen').cloneNode(true);
-  const chartConfigs = {};
-  document.getElementById('dashboardScreen').querySelectorAll('canvas').forEach(cv => {
-    const instance = Chart.getChart(cv);
-    if (instance) chartConfigs[cv.id] = { type: instance.config.type, data: JSON.parse(JSON.stringify(instance.config.data)), options: JSON.parse(JSON.stringify(instance.config.options)) };
-  });
-  // Pre-compute label strings — formatter functions don't survive JSON.stringify
-  Object.values(chartConfigs).forEach(cfg => {
-    if (cfg.type === 'doughnut' || cfg.type === 'pie') {
-      const d = (cfg.data.datasets[0]||{}).data||[], t = d.reduce((a,b)=>a+b,0);
-      cfg._dlabels = d.map(v => (t && v > 0 && v !== 1) ? v+'\n('+Math.round(v/t*100)+'%)' : '');
-    }
-  });
-  // Pre-compute dept proportion chart labels
-  const _dpc = chartConfigs['chartDeptProp'];
-  if (_dpc && _dpc.data && _dpc.data.datasets && _dpc.data.datasets.length >= 2) {
-    const _d0 = _dpc.data.datasets[0].data||[], _d1 = _dpc.data.datasets[1].data||[];
-    const _gt = _d0.reduce((s,v)=>s+v,0) + _d1.reduce((s,v)=>s+v,0);
-    const _sl = v => { if (!v||v<=0) return null; const p=_gt>0?(v/_gt*100):0; return p>=2?`${v} (${p.toFixed(1)}%)`:null; };
-    _dpc._deptOnroll  = _d0.map(_sl);
-    _dpc._deptOffroll = _d1.map(_sl);
-    _dpc._deptTotal   = _d0.map((v,i)=>{ const t=v+(_d1[i]||0); if(!t)return null; const p=_gt>0?(t/_gt*100).toFixed(1):'0.0'; return `${t} (${p}%)`; });
-  }
   dash.querySelectorAll('canvas').forEach(c => { c.removeAttribute('width'); c.removeAttribute('height'); c.style.cssText = ''; });
   dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(b => b.remove());
-  const title = document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
+  const title = d.title || document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
 <style>${styles}</style></head><body>${dash.outerHTML}<div style="text-align:center;padding:12px;font-size:.7rem;color:#94a3b8;">Saved on ${date}</div>
 <script>
 Chart.register(ChartDataLabels);
-function switchTab(name){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');document.getElementById('panel-'+name).classList.add('active');}
+function switchTab(name){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));var tb=document.getElementById('tab-'+name);if(tb)tb.classList.add('active');var tp=document.getElementById('panel-'+name);if(tp)tp.classList.add('active');}
 function selectTrendMonth(){}function openAddMonthModal(){}
-const _cfgs=${JSON.stringify(chartConfigs)};
-Object.values(_cfgs).forEach(function(cfg){if(cfg._dlabels){var s=cfg._dlabels;if(cfg.options&&cfg.options.plugins&&cfg.options.plugins.datalabels)cfg.options.plugins.datalabels.formatter=function(v,ctx){return s[ctx.dataIndex]||'';};}});
-(function(){var dc=_cfgs.chartDeptProp;if(!dc)return;var ol=dc._deptOnroll||[],fl=dc._deptOffroll||[],tl=dc._deptTotal||[];var ds=dc.data&&dc.data.datasets;if(!ds)return;if(ds[0]&&ds[0].datalabels)ds[0].datalabels.formatter=function(v,ctx){return ol[ctx.dataIndex]||null;};if(ds[1]&&ds[1].datalabels){var lb=ds[1].datalabels.labels;if(lb){if(lb.segment)lb.segment.formatter=function(v,ctx){return fl[ctx.dataIndex]||null;};if(lb.total)lb.total.formatter=function(v,ctx){return tl[ctx.dataIndex]||null;};}else{ds[1].datalabels.formatter=function(v,ctx){return fl[ctx.dataIndex]||null;};}}})();
-Object.entries(_cfgs).forEach(([id,cfg])=>{const el=document.getElementById(id);if(el)new Chart(el,cfg);});
+var chartInstances={};
+var _d=${JSON.stringify(d)};
+var openLabel=_d.openLabel,closeLabel=_d.closeLabel;
+${fnDefs}
+var _or=_d.rows.filter(function(r){return r.type==='Onroll';});
+var _sr=_d.rows.filter(function(r){return r.type!=='Onroll';});
+renderDoughnutChart('chartEmpType',_d.rows);
+renderGroupedBar('chartLocationOv',groupBy(_d.rows,'loc'),'#93c5fd','#1d4ed8');
+renderDeptPropChart('chartDeptProp',_d.rows);
+renderGroupedBar('chartOnrollLoc',groupBy(_or,'loc'),'#a5b4fc','#4338ca');
+renderGroupedBar('chartOnrollTeam',groupBy(_or,'team'),'#c4b5fd','#6d28d9');
+renderGroupedBar('chartSupportTeam',groupBy(_sr,'team'),'#7dd3fc','#0369a1');
+renderGroupedBar('chartSupportLoc',groupBy(_sr,'loc'),'#86efac','#15803d');
 <\/script></body></html>`;
 }
 function saveAsHTML() {

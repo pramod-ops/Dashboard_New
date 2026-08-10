@@ -1388,15 +1388,23 @@ function buildShareableHTML() {
   // Embed render function sources verbatim — all closures (formatters, grandTotal, segFmt) are preserved
   const fnDefs = [hex2rgba, groupBy, renderGroupedBar, renderDeptPropChart, renderDoughnutChart].map(f => f.toString()).join('\n\n');
 
-  // Helper: clone DOM for one snapshot and rename canvas IDs for multi-month isolation
+  // Charts rendered via Option B render functions (don't need config capture)
+  const _MAIN_IDS = new Set(['chartEmpType','chartLocationOv','chartDeptProp','chartOnrollLoc','chartOnrollTeam','chartSupportTeam','chartSupportLoc']);
+
+  // Helper: clone DOM for one snapshot; also captures configs for extra charts (trend etc.)
   function cloneDash(snapIdx) {
     const dash = document.getElementById('dashboardScreen').cloneNode(true);
+    const extraConfigs = {};
     [...document.getElementById('dashboardScreen').querySelectorAll('canvas')].forEach(cv => {
       const cloneCanvas = dash.querySelector(`#${cv.id}`);
       if (cloneCanvas) { cloneCanvas.id = `s${snapIdx}_${cv.id}`; cloneCanvas.removeAttribute('width'); cloneCanvas.removeAttribute('height'); cloneCanvas.style.cssText = ''; }
+      if (!_MAIN_IDS.has(cv.id)) {
+        const inst = Chart.getChart(cv);
+        if (inst) extraConfigs[`s${snapIdx}_${cv.id}`] = { type: inst.config.type, data: JSON.parse(JSON.stringify(inst.config.data)), options: JSON.parse(JSON.stringify(inst.config.options)) };
+      }
     });
     dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(el => el.remove());
-    return dash.innerHTML;
+    return { html: dash.innerHTML, extraConfigs };
   }
 
   // Multi-month: embed raw data per snapshot + render functions
@@ -1405,8 +1413,10 @@ function buildShareableHTML() {
     const snaps = [];
     [-1, ...uploadedMonths.map((_, i) => i)].forEach((idx, snapIdx) => {
       selectUploadedMonth(idx);
-      const html = cloneDash(snapIdx);
-      snaps.push({ idx, snapIdx, label: idx === -1 ? 'YTD' : uploadedMonths[idx].label, html, data: JSON.parse(JSON.stringify(window._shareData)) });
+      const { html, extraConfigs } = cloneDash(snapIdx);
+      const sd = JSON.parse(JSON.stringify(window._shareData));
+      sd.extraConfigs = extraConfigs;
+      snaps.push({ idx, snapIdx, label: idx === -1 ? 'YTD' : uploadedMonths[idx].label, html, data: sd });
     });
     selectUploadedMonth(originalIdx);
     updateGlobalMonthSelector();
@@ -1433,7 +1443,7 @@ Chart.register(ChartDataLabels);
 var chartInstances={},openLabel,closeLabel,_done={},CS=${active};
 var _snapsData=${allData};
 ${fnDefs}
-function initSnap(i){if(_done[i])return;_done[i]=1;var d=_snapsData[i];openLabel=d.openLabel;closeLabel=d.closeLabel;var pfx='s'+i+'_';var _or=d.rows.filter(function(r){return r.type==='Onroll';});var _sr=d.rows.filter(function(r){return r.type!=='Onroll';});renderDoughnutChart(pfx+'chartEmpType',d.rows);renderGroupedBar(pfx+'chartLocationOv',groupBy(d.rows,'loc'),'#93c5fd','#1d4ed8');renderDeptPropChart(pfx+'chartDeptProp',d.rows);renderGroupedBar(pfx+'chartOnrollLoc',groupBy(_or,'loc'),'#a5b4fc','#4338ca');renderGroupedBar(pfx+'chartOnrollTeam',groupBy(_or,'team'),'#c4b5fd','#6d28d9');renderGroupedBar(pfx+'chartSupportTeam',groupBy(_sr,'team'),'#7dd3fc','#0369a1');renderGroupedBar(pfx+'chartSupportLoc',groupBy(_sr,'loc'),'#86efac','#15803d');}
+function initSnap(i){if(_done[i])return;_done[i]=1;var d=_snapsData[i];openLabel=d.openLabel;closeLabel=d.closeLabel;var pfx='s'+i+'_';var _or=d.rows.filter(function(r){return r.type==='Onroll';});var _sr=d.rows.filter(function(r){return r.type!=='Onroll';});renderDoughnutChart(pfx+'chartEmpType',d.rows);renderGroupedBar(pfx+'chartLocationOv',groupBy(d.rows,'loc'),'#93c5fd','#1d4ed8');renderDeptPropChart(pfx+'chartDeptProp',d.rows);renderGroupedBar(pfx+'chartOnrollLoc',groupBy(_or,'loc'),'#a5b4fc','#4338ca');renderGroupedBar(pfx+'chartOnrollTeam',groupBy(_or,'team'),'#c4b5fd','#6d28d9');renderGroupedBar(pfx+'chartSupportTeam',groupBy(_sr,'team'),'#7dd3fc','#0369a1');renderGroupedBar(pfx+'chartSupportLoc',groupBy(_sr,'loc'),'#86efac','#15803d');if(d.extraConfigs){Object.entries(d.extraConfigs).forEach(function(e){var el=document.getElementById(e[0]);if(el)chartInstances[e[0]]=new Chart(el,e[1]);});}}
 function switchSnap(i){document.querySelectorAll('.msnap').forEach((d,j)=>d.style.display=j===i?'block':'none');document.querySelectorAll('.gmpill').forEach((p,j)=>p.classList.toggle('active',j===i));CS=i;initSnap(i);}
 function switchTab(n){var s=document.getElementById('msnap'+CS);if(!s)return;s.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));s.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));var tb=s.querySelector('#tab-'+n);if(tb)tb.classList.add('active');var tp=s.querySelector('#panel-'+n);if(tp)tp.classList.add('active');}
 function selectTrendMonth(){}function openAddMonthModal(){}

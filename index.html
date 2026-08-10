@@ -1590,43 +1590,41 @@ function renderDeptPropChart(id, rows) {
       }
     },
     plugins: [{
-      id: 'deptSegLabels',
-      afterDatasetsDraw(chart) {
-        const { ctx, data } = chart;
-        data.datasets.forEach((dataset, di) => {
-          const meta = chart.getDatasetMeta(di);
-          meta.data.forEach((bar, i) => {
-            const v = dataset.data[i];
-            if (!v || v <= 0) return;
+      id: 'deptAllLabels',
+      afterDraw(chart) {
+        const { ctx, data, scales: { x, y } } = chart;
+        const cum = new Array(data.labels.length).fill(0);
+        data.datasets.forEach(dataset => {
+          dataset.data.forEach((v, i) => {
+            if (!v || v <= 0) { cum[i] += (v || 0); return; }
             const pct = grandTotal > 0 ? (v / grandTotal * 100) : 0;
-            if (pct < 2) return;
-            const cx = (bar.x + bar.base) / 2;
-            const cy = bar.y;
-            const label = `${v} (${pct.toFixed(1)}%)`;
-            ctx.save();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 9px "Segoe UI", system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(label, cx, cy);
-            ctx.restore();
+            if (pct >= 2) {
+              const x0 = x.getPixelForValue(cum[i]);
+              const x1 = x.getPixelForValue(cum[i] + v);
+              const cx = (x0 + x1) / 2;
+              const cy = y.getPixelForValue(data.labels[i]);
+              ctx.save();
+              ctx.fillStyle = '#fff';
+              ctx.font = 'bold 9px "Segoe UI",sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`${v} (${pct.toFixed(1)}%)`, cx, cy);
+              ctx.restore();
+            }
+            cum[i] += v;
           });
         });
-      }
-    }, {
-      id: 'deptTotals',
-      afterDatasetsDraw(chart) {
-        const { ctx } = chart;
-        const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
-        meta.data.forEach((bar, i) => {
+        data.labels.forEach((lbl, i) => {
           const t = totals[i]; if (!t) return;
           const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : 0;
+          const xEnd = x.getPixelForValue(t);
+          const cy   = y.getPixelForValue(lbl);
           ctx.save();
           ctx.fillStyle = '#e2e8f0';
-          ctx.font = 'bold 10px "Segoe UI", system-ui, sans-serif';
+          ctx.font = 'bold 10px "Segoe UI",sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`${t} (${pct}%)`, bar.x + 6, bar.y);
+          ctx.fillText(`${t} (${pct}%)`, xEnd + 6, cy);
           ctx.restore();
         });
       }

@@ -1592,9 +1592,10 @@ function renderDeptPropChart(id, rows) {
     plugins: [{
       id: 'deptAllLabels',
       afterDraw(chart) {
-        const { ctx, data, scales: { x, y } } = chart;
+        const { ctx, data, scales: { x } } = chart;
         const cum = new Array(data.labels.length).fill(0);
-        data.datasets.forEach(dataset => {
+        data.datasets.forEach((dataset, di) => {
+          const meta = chart.getDatasetMeta(di);
           dataset.data.forEach((v, i) => {
             if (!v || v <= 0) { cum[i] += (v || 0); return; }
             const pct = grandTotal > 0 ? (v / grandTotal * 100) : 0;
@@ -1602,7 +1603,7 @@ function renderDeptPropChart(id, rows) {
               const x0 = x.getPixelForValue(cum[i]);
               const x1 = x.getPixelForValue(cum[i] + v);
               const cx = (x0 + x1) / 2;
-              const cy = y.getPixelForValue(data.labels[i]);
+              const cy = meta.data[i].y;
               ctx.save();
               ctx.fillStyle = '#fff';
               ctx.font = 'bold 9px "Segoe UI",sans-serif';
@@ -1614,11 +1615,12 @@ function renderDeptPropChart(id, rows) {
             cum[i] += v;
           });
         });
-        data.labels.forEach((lbl, i) => {
-          const t = totals[i]; if (!t) return;
+        const lastMeta = chart.getDatasetMeta(data.datasets.length - 1);
+        totals.forEach((t, i) => {
+          if (!t) return;
           const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : 0;
           const xEnd = x.getPixelForValue(t);
-          const cy   = y.getPixelForValue(lbl);
+          const cy   = lastMeta.data[i].y;
           ctx.save();
           ctx.fillStyle = '#e2e8f0';
           ctx.font = 'bold 10px "Segoe UI",sans-serif';

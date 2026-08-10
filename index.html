@@ -1565,77 +1565,83 @@ function renderDeptPropChart(id, rows) {
   const h = Math.max(240, sorted.length * 36 + 80);
   if (el.parentElement) el.parentElement.style.height = h + 'px';
 
+  const segFmt = (v) => {
+    if (!v || v <= 0) return null;
+    const pct = grandTotal > 0 ? (v / grandTotal * 100) : 0;
+    return pct >= 2 ? `${v} (${pct.toFixed(1)}%)` : null;
+  };
+
   chartInstances[id] = new Chart(el, {
     type: 'bar',
     data: {
       labels,
       datasets: [
-        { label: 'On-roll',  data: onrollVals,  backgroundColor: '#6366f1', borderRadius: 3, borderSkipped: false },
-        { label: 'Off-roll', data: offrollVals, backgroundColor: '#0ea5e9', borderRadius: 3, borderSkipped: false }
+        {
+          label: 'On-roll',
+          data: onrollVals,
+          backgroundColor: '#6366f1',
+          borderRadius: 3,
+          borderSkipped: false,
+          datalabels: {
+            display: true,
+            color: '#fff',
+            anchor: 'center',
+            align: 'center',
+            font: { size: 9, weight: 'bold', family: '"Segoe UI",sans-serif' },
+            clip: false,
+            formatter: segFmt
+          }
+        },
+        {
+          label: 'Off-roll',
+          data: offrollVals,
+          backgroundColor: '#0ea5e9',
+          borderRadius: 3,
+          borderSkipped: false,
+          datalabels: {
+            labels: {
+              segment: {
+                display: true,
+                color: '#fff',
+                anchor: 'center',
+                align: 'center',
+                font: { size: 9, weight: 'bold', family: '"Segoe UI",sans-serif' },
+                clip: false,
+                formatter: segFmt
+              },
+              total: {
+                display: true,
+                color: '#e2e8f0',
+                anchor: 'end',
+                align: 'right',
+                font: { size: 10, weight: 'bold', family: '"Segoe UI",sans-serif' },
+                formatter: (v, ctx) => {
+                  const t = totals[ctx.dataIndex];
+                  if (!t) return null;
+                  const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : '0.0';
+                  return `${t} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
       ]
     },
     options: {
       indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { right: 55 } },
+      layout: { padding: { right: 70 } },
       plugins: {
         legend: { display: true, position: 'top', labels: { padding: 10, boxWidth: 10, font: { size: 10 } } },
         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} (${grandTotal > 0 ? (ctx.raw / grandTotal * 100).toFixed(1) : 0}%)` } },
         datalabels: { display: false }
       },
-      animation: false,
       scales: {
         x: { stacked: true, grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true, ticks: { font: { size: 9 } } },
         y: { stacked: true, grid: { display: false }, ticks: { font: { size: 9 }, color: '#cbd5e1' } }
       }
-    },
-    plugins: [{
-      id: 'deptAllLabels',
-      afterDraw(chart) {
-        const { ctx, data, scales: { x } } = chart;
-        const cum = new Array(data.labels.length).fill(0);
-        data.datasets.forEach((dataset, di) => {
-          const meta = chart.getDatasetMeta(di);
-          dataset.data.forEach((v, i) => {
-            if (!v || v <= 0) { cum[i] += (v || 0); return; }
-            const pct = grandTotal > 0 ? (v / grandTotal * 100) : 0;
-            if (pct >= 2) {
-              const x0 = x.getPixelForValue(cum[i]);
-              const x1 = x.getPixelForValue(cum[i] + v);
-              const cx = (x0 + x1) / 2;
-              const props = meta.data[i].getProps ? meta.data[i].getProps(['y'], true) : meta.data[i];
-              const cy = props.y;
-              if (isNaN(cx) || isNaN(cy)) { cum[i] += v; return; }
-              ctx.save();
-              ctx.fillStyle = '#fff';
-              ctx.font = 'bold 9px "Segoe UI",sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(`${v} (${pct.toFixed(1)}%)`, cx, cy);
-              ctx.restore();
-            }
-            cum[i] += v;
-          });
-        });
-        const lastMeta = chart.getDatasetMeta(data.datasets.length - 1);
-        totals.forEach((t, i) => {
-          if (!t || !lastMeta.data[i]) return;
-          const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : 0;
-          const xEnd = x.getPixelForValue(t);
-          const lProps = lastMeta.data[i].getProps ? lastMeta.data[i].getProps(['y'], true) : lastMeta.data[i];
-          const cy = lProps.y;
-          if (isNaN(xEnd) || isNaN(cy)) return;
-          ctx.save();
-          ctx.fillStyle = '#e2e8f0';
-          ctx.font = 'bold 10px "Segoe UI",sans-serif';
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`${t} (${pct}%)`, xEnd + 6, cy);
-          ctx.restore();
-        });
-      }
-    }]
+    }
   });
 }
 

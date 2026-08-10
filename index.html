@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headcount Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1e2432;
+  --border: rgba(255,255,255,.08);
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.5);
+  --shadow-md: 0 4px 24px rgba(0,0,0,.6), 0 1px 4px rgba(0,0,0,.4);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --faint: #64748b;
+  --navy: #060d1f;
+  --blue: #3b82f6;
+  --green: #10b981;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --purple: #a78bfa;
+  --r: 14px;
+}
+body { font-family: 'Segoe UI', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes spin   { to { transform:rotate(360deg); } }
+
+/* ═══ UPLOAD SCREEN ═══ */
+#uploadScreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, #060d1f 0%, #0b1d42 40%, #0a1530 70%, #030a18 100%);
+}
+#uploadScreen::before {
+  content: ''; position: absolute; top: -30%; left: -20%; width: 60%; aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(29,78,216,0.32) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none;
+}
+#uploadScreen::after {
+  content: ''; position: absolute; bottom: -25%; right: -15%; width: 55%; aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(124,58,237,0.26) 0%, transparent 65%);
+  border-radius: 50%; pointer-events: none;
+}
+.upload-box {
+  background: rgba(22,27,34,0.92); backdrop-filter: blur(24px);
+  border-radius: 24px; padding: 50px 52px 44px; max-width: 560px; width: 100%;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.07);
+  text-align: center; position: relative; z-index: 2; animation: fadeUp .35s ease both;
+}
+.upload-logo { font-size: 2.8rem; margin-bottom: 4px; }
+.upload-badge { display: inline-block; background: linear-gradient(90deg,#1d4ed8,#7c3aed); color: #fff; font-size: .56rem; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; padding: 2px 12px; border-radius: 20px; margin-bottom: 10px; }
+.upload-title { font-size: 1.75rem; font-weight: 900; color: #f1f5f9; margin-bottom: 5px; letter-spacing: -.4px; }
+.upload-sub { font-size: 0.81rem; color: #64748b; margin-bottom: 30px; line-height: 1.55; }
+.drop-zone { border: 2px dashed rgba(255,255,255,.15); border-radius: 16px; padding: 28px 20px; cursor: pointer; transition: all .2s; background: rgba(255,255,255,.04); margin-bottom: 20px; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: rgba(59,130,246,.08); border-style: solid; }
+.drop-icon { font-size: 2.1rem; margin-bottom: 8px; }
+.drop-text { font-size: 0.87rem; color: #cbd5e1; font-weight: 700; }
+.drop-hint { font-size: 0.70rem; color: #64748b; margin-top: 4px; }
+#fileInput { display: none; }
+.period-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.field-label { font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 5px; text-align: left; }
+.field-input { width: 100%; border: 1.5px solid rgba(255,255,255,.12); border-radius: 9px; padding: 9px 12px; font-size: 0.83rem; color: #e2e8f0; outline: none; transition: border .15s, box-shadow .15s; background: rgba(255,255,255,.07); }
+.field-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+.field-name-row { margin-bottom: 16px; text-align: left; }
+.btn-generate { width: 100%; background: linear-gradient(135deg,#1d4ed8 0%,#7c3aed 100%); color: #fff; border: none; border-radius: 12px; padding: 15px; font-size: 1rem; font-weight: 800; cursor: pointer; letter-spacing: .1px; transition: opacity .2s, transform .12s, box-shadow .2s; margin-top: 8px; box-shadow: 0 6px 24px rgba(29,78,216,.4); }
+.btn-generate:hover { opacity: .92; transform: translateY(-1px); box-shadow: 0 10px 32px rgba(29,78,216,.5); }
+.btn-generate:active { transform: translateY(0); }
+.btn-generate:disabled { opacity: .38; cursor: not-allowed; transform: none; box-shadow: none; }
+.file-selected { background: rgba(16,185,129,.12); color: #6ee7b7; font-size: 0.75rem; border-radius: 9px; padding: 8px 14px; margin-top: 10px; display: none; font-weight: 600; border: 1px solid rgba(16,185,129,.3); text-align: left; }
+
+/* ═══ DASHBOARD ═══ */
+#dashboardScreen { display: none; }
+.header {
+  background: linear-gradient(135deg, #060d1f 0%, #0b1d42 55%, #0a0f40 100%);
+  color: #fff; padding: 15px 32px 12px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.42); border-bottom: 1px solid rgba(255,255,255,.06);
+  position: relative; overflow: hidden;
+}
+.header::before {
+  content: ''; position: absolute; top: -80%; right: -4%; width: 320px; aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none;
+}
+.header > div:first-child { position: relative; z-index: 1; }
+.header-title { font-size: 1.2rem; font-weight: 900; letter-spacing: -.2px; display: flex; align-items: center; gap: 10px; }
+.header-sub { font-size: 0.67rem; color: #6e8fad; margin-top: 3px; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; position: relative; z-index: 1; }
+.header-right-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.header-badge { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.13); border-radius: 20px; padding: 3px 12px; font-size: 0.66rem; color: #9eb5cc; }
+.header-attrition { background: rgba(220,38,38,0.18); border: 1px solid rgba(220,38,38,0.38); border-radius: 20px; padding: 3px 12px; font-size: 0.66rem; color: #fca5a5; font-weight: 800; }
+.btn-new-upload { background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.17); color: #dde6ef; border-radius: 8px; padding: 5px 13px; font-size: 0.68rem; cursor: pointer; font-weight: 700; transition: background .18s; }
+.btn-new-upload:hover { background: rgba(255,255,255,0.18); }
+.btn-save-html { background: rgba(5,150,105,0.17); border: 1px solid rgba(5,150,105,0.38); color: #6ee7b7; border-radius: 8px; padding: 5px 13px; font-size: 0.68rem; cursor: pointer; font-weight: 700; transition: background .18s; }
+.btn-save-html:hover { background: rgba(5,150,105,0.3); }
+.btn-share-link { background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.42); color: #c4b5fd; border-radius: 8px; padding: 5px 13px; font-size: 0.68rem; cursor: pointer; font-weight: 700; transition: background .18s; }
+.btn-share-link:hover { background: rgba(124,58,237,0.35); }
+.btn-share-link:disabled { opacity: .44; cursor: not-allowed; }
+
+/* ═══ TAB NAV ═══ */
+.tab-nav {
+  background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 28px;
+  display: flex; gap: 0; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3); overflow-x: auto;
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 2.5px solid transparent;
+  padding: 13px 18px; font-size: 0.74rem; font-weight: 700; color: var(--faint);
+  cursor: pointer; transition: all .18s; white-space: nowrap; margin-bottom: -1px; letter-spacing: .1px;
+}
+.tab-btn:hover { color: var(--muted); background: var(--surface2); }
+.tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); background: rgba(59,130,246,.1); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fadeUp .22s ease both; }
+
+/* ═══ MODALS ═══ */
+#shareModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center; }
+#shareModal.open { display:flex; }
+.share-box { background:var(--surface); border-radius:18px; padding:32px; max-width:520px; width:90%; box-shadow:0 32px 80px rgba(0,0,0,0.6); animation:fadeUp .22s ease both; border:1px solid var(--border); }
+.share-box h3 { font-size:1.05rem; font-weight:800; color:var(--text); margin-bottom:5px; }
+.share-box p { font-size:0.78rem; color:var(--muted); margin-bottom:18px; }
+.share-url-row { display:flex; gap:8px; align-items:center; }
+.share-url-input { flex:1; border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-size:0.76rem; color:var(--text); background:var(--surface2); outline:none; }
+.share-copy-btn { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; border-radius:9px; padding:9px 16px; font-size:0.76rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.share-note { font-size:0.70rem; color:var(--faint); margin-top:10px; }
+.share-close { margin-top:18px; width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:9px; font-size:0.80rem; font-weight:600; cursor:pointer; color:var(--muted); }
+.share-spinner { display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:5px; }
+#tokenModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); z-index:10000; align-items:center; justify-content:center; }
+#tokenModal.open { display:flex; }
+.token-box { background:var(--surface); border-radius:18px; padding:32px; max-width:480px; width:90%; box-shadow:0 32px 80px rgba(0,0,0,0.6); animation:fadeUp .22s ease both; border:1px solid var(--border); }
+.token-box h3 { font-size:1rem; font-weight:800; color:var(--text); margin-bottom:6px; }
+.token-box p { font-size:0.75rem; color:var(--muted); margin-bottom:4px; line-height:1.5; }
+.token-steps { background:var(--surface2); border-radius:10px; padding:12px 16px; margin:12px 0 16px; font-size:0.72rem; color:var(--muted); line-height:1.8; border:1px solid var(--border); }
+.token-input-row { display:flex; gap:8px; }
+.token-input { flex:1; border:1.5px solid var(--border); border-radius:9px; padding:9px 12px; font-size:0.80rem; color:var(--text); background:var(--surface2); outline:none; font-family:monospace; }
+.token-save-btn { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; border-radius:9px; padding:9px 18px; font-size:0.80rem; font-weight:700; cursor:pointer; }
+.token-cancel-btn { margin-top:12px; width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:9px; font-size:0.80rem; font-weight:600; cursor:pointer; color:var(--muted); }
+
+/* ═══ CONTAINER ═══ */
+.container { max-width: 1440px; margin: 0 auto; padding: 20px 28px 56px; }
+
+/* ═══ KPI CARDS ═══ */
+.kpi-grid   { display:grid; grid-template-columns:repeat(6,1fr); gap:11px; margin-bottom:16px; }
+.kpi-grid-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:11px; margin-bottom:16px; }
+.kpi {
+  background: var(--surface); border-radius: 15px; padding: 16px 16px 13px;
+  box-shadow: var(--shadow); border: 1px solid var(--border);
+  position: relative; overflow: hidden; transition: transform .18s, box-shadow .18s;
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:3.5px; border-radius:15px 15px 0 0; }
+.kpi.c-blue   { background:linear-gradient(155deg,var(--surface) 62%,rgba(59,130,246,.12)); }  .kpi.c-blue::before   { background:linear-gradient(90deg,#1d4ed8,#60a5fa); }
+.kpi.c-teal   { background:linear-gradient(155deg,var(--surface) 62%,rgba(8,145,178,.12)); }   .kpi.c-teal::before   { background:linear-gradient(90deg,#0891b2,#22d3ee); }
+.kpi.c-green  { background:linear-gradient(155deg,var(--surface) 62%,rgba(16,185,129,.12)); }  .kpi.c-green::before  { background:linear-gradient(90deg,#059669,#34d399); }
+.kpi.c-red    { background:linear-gradient(155deg,var(--surface) 62%,rgba(248,113,113,.12)); } .kpi.c-red::before    { background:linear-gradient(90deg,#dc2626,#f87171); }
+.kpi.c-amber  { background:linear-gradient(155deg,var(--surface) 62%,rgba(251,191,36,.12)); }  .kpi.c-amber::before  { background:linear-gradient(90deg,#d97706,#fbbf24); }
+.kpi.c-purple { background:linear-gradient(155deg,var(--surface) 62%,rgba(167,139,250,.12)); } .kpi.c-purple::before { background:linear-gradient(90deg,#7c3aed,#a78bfa); }
+.kpi.c-indigo { background:linear-gradient(155deg,var(--surface) 62%,rgba(129,140,248,.12)); } .kpi.c-indigo::before { background:linear-gradient(90deg,#4338ca,#818cf8); }
+.kpi.c-rose   { background:linear-gradient(155deg,var(--surface) 62%,rgba(251,113,133,.12)); } .kpi.c-rose::before   { background:linear-gradient(90deg,#e11d48,#fb7185); }
+.kpi-icon { font-size:1.25rem; margin-bottom:5px; }
+.kpi-label { font-size:.58rem; text-transform:uppercase; letter-spacing:1px; color:var(--faint); font-weight:800; }
+.kpi-value { font-size:2.2rem; font-weight:900; line-height:1.1; margin:4px 0 3px; }
+.kpi.c-blue   .kpi-value { color:#60a5fa; }
+.kpi.c-teal   .kpi-value { color:#22d3ee; }
+.kpi.c-green  .kpi-value { color:#34d399; }
+.kpi.c-red    .kpi-value { color:#f87171; }
+.kpi.c-amber  .kpi-value { color:#fbbf24; }
+.kpi.c-purple .kpi-value { color:#a78bfa; }
+.kpi.c-indigo .kpi-value { color:#818cf8; }
+.kpi.c-rose   .kpi-value { color:#fb7185; }
+.kpi-sub { font-size:.63rem; color:var(--faint); font-weight:500; }
+
+/* ═══ SECTION HEADING ═══ */
+.section-heading {
+  font-size:.56rem; font-weight:900; text-transform:uppercase; letter-spacing:1.7px;
+  color:var(--faint); margin:22px 0 11px; display:flex; align-items:center; gap:10px;
+}
+.section-heading::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,.1),transparent); }
+
+/* ═══ CARDS ═══ */
+.card { background:var(--surface); border-radius:15px; padding:10px 13px; box-shadow:var(--shadow); border:1px solid var(--border); }
+.card-title { font-size:.72rem; font-weight:700; color:var(--muted); margin-bottom:8px; display:flex; align-items:center; gap:7px; }
+.card-title-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* ═══ INSIGHTS ═══ */
+.insights-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:11px; margin-bottom:18px; }
+.insight-card { background:rgba(255,255,255,0.08); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-radius:12px; padding:8px 10px; box-shadow:0 2px 8px rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.15); border-left:3px solid; transition:transform .18s,box-shadow .18s; }
+.insight-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,.3); }
+.insight-icon { font-size:1.1rem; margin-bottom:3px; }
+.insight-title { font-size:.52rem; text-transform:uppercase; letter-spacing:.9px; color:rgba(255,255,255,.55); font-weight:800; margin-bottom:2px; }
+.insight-value { font-size:.92rem; font-weight:800; line-height:1.2; margin-bottom:2px; }
+.insight-desc { font-size:.63rem; color:var(--muted); line-height:1.45; }
+
+/* ═══ GRIDS ═══ */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:13px; margin-bottom:13px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:13px; margin-bottom:13px; }
+.grid-1 { margin-bottom:13px; }
+
+/* ═══ TOTAL STRIP ═══ */
+.total-strip {
+  background: linear-gradient(135deg,#060d1f 0%,#0b1d42 100%);
+  border-radius:13px; padding:12px 22px; margin-bottom:18px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:0;
+  box-shadow:0 4px 20px rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05);
+  position:relative; overflow:hidden;
+}
+.total-strip::after { content:''; position:absolute; right:0; top:0; bottom:0; width:180px; background:radial-gradient(ellipse at right,rgba(124,58,237,0.22),transparent 70%); pointer-events:none; }
+.strip-label { font-size:.54rem; font-weight:900; text-transform:uppercase; letter-spacing:1.4px; color:#3d5268; margin-right:20px; white-space:nowrap; }
+.strip-items { display:flex; flex-wrap:wrap; gap:22px; flex:1; }
+.strip-item { text-align:center; }
+.strip-item-label { font-size:.49rem; text-transform:uppercase; color:#5a7190; font-weight:700; letter-spacing:.5px; }
+.strip-item-val { font-size:1rem; font-weight:900; }
+
+/* ═══ TABLE ═══ */
+.table-wrap { overflow-x:auto; border-radius:12px; overflow:hidden; }
+table { width:100%; border-collapse:collapse; font-size:.72rem; }
+thead tr { background:linear-gradient(90deg,#060d1f,#0b1d42); color:#e2e8f0; }
+th { padding:9px 11px; text-align:left; font-weight:800; font-size:.56rem; text-transform:uppercase; letter-spacing:.8px; white-space:nowrap; }
+th.r, td.r { text-align:right; }
+tbody tr:nth-child(odd)  { background:var(--surface); }
+tbody tr:nth-child(even) { background:var(--surface2); }
+tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+tbody tr:hover { background:rgba(59,130,246,.08); }
+td { padding:7px 11px; color:var(--muted); white-space:nowrap; }
+tr.total-row { background:linear-gradient(90deg,#060d1f,#0b1d42) !important; }
+tr.total-row td { color:#e2e8f0; font-weight:700; border:none; }
+
+/* ═══ BADGES & PILLS ═══ */
+.badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:.57rem; font-weight:700; }
+.b-onroll     { background:rgba(139,92,246,.2); color:#c4b5fd; }
+.b-offroll    { background:rgba(14,165,233,.2); color:#7dd3fc; }
+.b-consultant { background:rgba(234,179,8,.2);  color:#fde68a; }
+.b-intern     { background:rgba(16,185,129,.2); color:#6ee7b7; }
+.tag-loc { display:inline-block; padding:1px 6px; border-radius:5px; font-size:.62rem; background:rgba(255,255,255,.08); color:var(--muted); font-weight:600; }
+.pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.61rem; font-weight:700; white-space:nowrap; }
+.pill-red    { background:rgba(248,113,113,.18); color:#fca5a5; }
+.pill-amber  { background:rgba(251,191,36,.18);  color:#fde68a; }
+.pill-green  { background:rgba(52,211,153,.18);  color:#6ee7b7; }
+.pill-zero   { background:rgba(255,255,255,.07); color:var(--faint); }
+.chg-pos { color:#34d399; font-weight:700; }
+.chg-neg { color:#f87171; font-weight:700; }
+.chg-zero { color:var(--faint); }
+
+/* ═══ FOOTER ═══ */
+.footer { text-align:center; padding:16px; font-size:.65rem; color:var(--faint); }
+.info-banner { background:rgba(251,191,36,.1); border:1px solid rgba(251,191,36,.3); border-radius:10px; padding:10px 15px; font-size:.78rem; color:#fde68a; margin-bottom:14px; display:none; }
+
+/* ═══ MONTH SELECTOR BAR ═══ */
+.month-sel-bar {
+  background:linear-gradient(90deg,#060d1f,#0b1d42);
+  padding:10px 28px; border-bottom:1px solid rgba(255,255,255,.05);
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:46px;
+}
+.month-sel-label { font-size:.54rem; font-weight:900; text-transform:uppercase; letter-spacing:1.5px; color:#3d5268; margin-right:6px; white-space:nowrap; }
+.mpill {
+  background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10);
+  color:#6e8fad; border-radius:20px; padding:4px 15px; font-size:.70rem; font-weight:700;
+  cursor:pointer; transition:all .18s; white-space:nowrap;
+}
+.mpill:hover { background:rgba(255,255,255,0.14); color:#c8d8e8; border-color:rgba(255,255,255,0.24); }
+.mpill.active { background:var(--blue); border-color:var(--blue); color:#fff; box-shadow:0 0 14px rgba(29,78,216,.5); }
+.mpill.all-m.active { background:var(--purple); border-color:var(--purple); box-shadow:0 0 14px rgba(124,58,237,.52); }
+
+/* ═══ GLOBAL MONTH BAR ═══ */
+.global-month-bar {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:9px 24px; display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  position:sticky; top:58px; z-index:90;
+  box-shadow:0 2px 8px rgba(0,0,0,0.3);
+}
+.global-month-bar .gm-label { font-size:.53rem; font-weight:900; text-transform:uppercase; letter-spacing:1.5px; color:var(--faint); white-space:nowrap; }
+.gmpill {
+  background:var(--surface2); border:1.5px solid var(--border); color:var(--muted); border-radius:20px;
+  padding:4px 14px; font-size:.70rem; font-weight:700; cursor:pointer; transition:all .18s; white-space:nowrap; user-select:none;
+}
+.gmpill:hover { background:rgba(255,255,255,.1); color:var(--text); }
+.gmpill.active { background:var(--blue); border-color:var(--blue); color:#fff; box-shadow:0 2px 10px rgba(59,130,246,.35); }
+.gmpill.all-m.active { background:var(--purple); border-color:var(--purple); box-shadow:0 2px 10px rgba(167,139,250,.35); }
+.gmpill.add-pill {
+  background:transparent; border:1.5px dashed rgba(255,255,255,.15); color:var(--faint);
+  padding:4px 12px; font-size:.68rem;
+}
+.gmpill.add-pill:hover { border-color:var(--blue); color:var(--blue); background:rgba(59,130,246,.08); }
+
+/* ═══ ADD MONTH MODAL ═══ */
+#addMonthModal {
+  display:none; position:fixed; inset:0; z-index:9999;
+  background:rgba(6,13,31,.72); backdrop-filter:blur(4px);
+  align-items:center; justify-content:center;
+}
+#addMonthModal.open { display:flex; }
+.addm-box {
+  background:var(--surface); border-radius:18px; padding:28px 28px 24px;
+  width:min(460px,94vw); box-shadow:0 20px 60px rgba(0,0,0,.6);
+  animation:fadeUp .22s ease; border:1px solid var(--border);
+}
+.addm-title { font-size:.92rem; font-weight:900; color:var(--text); margin-bottom:4px; }
+.addm-sub { font-size:.68rem; color:var(--muted); margin-bottom:18px; }
+.addm-drop {
+  border:2px dashed rgba(255,255,255,.15); border-radius:12px; padding:22px 18px;
+  text-align:center; cursor:pointer; transition:all .18s; margin-bottom:16px;
+  background:var(--surface2); position:relative;
+}
+.addm-drop:hover, .addm-drop.drag-over { border-color:var(--blue); background:rgba(59,130,246,.08); }
+.addm-drop input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.addm-drop-icon { font-size:1.4rem; margin-bottom:4px; pointer-events:none; }
+.addm-drop-text { font-size:.72rem; color:var(--muted); font-weight:600; pointer-events:none; }
+.addm-drop-text span { color:var(--blue); font-weight:700; }
+.addm-file-sel { font-size:.68rem; color:var(--green); font-weight:700; margin-top:6px; display:none; }
+.addm-date-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+.addm-field label { display:block; font-size:.54rem; font-weight:900; text-transform:uppercase; letter-spacing:1px; color:var(--faint); margin-bottom:5px; }
+.addm-field input[type=date] { width:100%; padding:8px 11px; border:1.5px solid var(--border); border-radius:9px; font-size:.74rem; color:var(--text); background:var(--surface2); outline:none; box-sizing:border-box; transition:border-color .18s; }
+.addm-field input[type=date]:focus { border-color:var(--blue); }
+.addm-name-row { margin-bottom:16px; }
+.addm-name-row label { display:block; font-size:.54rem; font-weight:900; text-transform:uppercase; letter-spacing:1px; color:var(--faint); margin-bottom:5px; }
+.addm-name-row input[type=text] { width:100%; padding:8px 11px; border:1.5px solid var(--border); border-radius:9px; font-size:.74rem; color:var(--text); background:var(--surface2); outline:none; box-sizing:border-box; transition:border-color .18s; }
+.addm-name-row input[type=text]:focus { border-color:var(--blue); }
+.addm-footer { display:flex; gap:9px; justify-content:flex-end; }
+.btn-addm-submit { background:var(--blue); color:#fff; border:none; border-radius:9px; padding:9px 22px; font-size:.74rem; font-weight:800; cursor:pointer; transition:opacity .18s; }
+.btn-addm-submit:hover { opacity:.88; }
+.btn-addm-submit:disabled { opacity:.4; cursor:default; }
+.btn-addm-cancel { background:var(--surface2); color:var(--muted); border:1px solid var(--border); border-radius:9px; padding:9px 18px; font-size:.74rem; font-weight:700; cursor:pointer; }
+.btn-addm-cancel:hover { background:rgba(255,255,255,.1); }
+
+/* ═══ BI KPI CARD ═══ */
+.kpi-bi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:9px; margin-bottom:14px; }
+.kpi-bi {
+  background:var(--surface); border-radius:12px; padding:11px 13px 10px;
+  box-shadow:var(--shadow); border:1px solid var(--border); border-top:3px solid;
+  transition:transform .18s,box-shadow .18s;
+}
+.kpi-bi:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+.kpi-bi-icon { font-size:1rem; margin-bottom:3px; }
+.kpi-bi-label { font-size:.54rem; text-transform:uppercase; letter-spacing:1px; color:var(--faint); font-weight:800; margin-bottom:2px; }
+.kpi-bi-value { font-size:1.55rem; font-weight:900; line-height:1.1; }
+.kpi-bi-delta { display:inline-flex; align-items:center; gap:2px; padding:1px 7px; border-radius:10px; font-size:.57rem; font-weight:700; margin-top:3px; }
+.d-up   { background:rgba(52,211,153,.18); color:#34d399; }
+.d-down { background:rgba(248,113,113,.18); color:#f87171; }
+.d-eq   { background:rgba(255,255,255,.07); color:var(--faint); }
+.kpi-bi-sub { font-size:.57rem; color:var(--faint); margin-top:1px; }
+
+/* ═══ MONTH DETAIL BANNER ═══ */
+.month-detail-banner {
+  background:linear-gradient(135deg,#060d1f,#0b1d42,#18104a);
+  border-radius:14px; padding:15px 22px; margin-bottom:14px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,.05);
+}
+.month-detail-banner h2 { font-size:1rem; font-weight:900; color:#fff; }
+.month-detail-banner span { font-size:.70rem; color:#6e8fad; }
+
+/* ═══ EXEC SUMMARY ═══ */
+.es-wrap { max-width:860px; margin:0 auto; padding:8px 0 40px; }
+.es-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px; }
+.es-logo { font-size:.65rem; font-weight:900; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
+.es-logo strong { color:var(--text); font-size:.9rem; }
+.es-meta { text-align:right; font-size:.7rem; color:var(--faint); line-height:1.8; }
+.es-title { font-size:1.5rem; font-weight:800; color:var(--text); letter-spacing:-.02em; margin-bottom:2px; }
+.es-period { font-size:.75rem; color:var(--muted); margin-bottom:20px; }
+.es-divider { height:1px; background:linear-gradient(90deg,var(--blue),transparent); margin:18px 0; }
+.es-section-label { font-size:.52rem; font-weight:900; letter-spacing:1.6px; text-transform:uppercase; color:var(--faint); margin-bottom:10px; }
+.es-kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px; }
+.es-kpi { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; border-top:3px solid; }
+.es-kpi-label { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:4px; }
+.es-kpi-val { font-size:1.5rem; font-weight:800; letter-spacing:-.03em; line-height:1; margin-bottom:3px; }
+.es-kpi-sub { font-size:.62rem; color:var(--faint); }
+.es-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+.es-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+.es-card-title { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.9px; color:var(--muted); margin-bottom:10px; }
+.es-highlight-row { display:flex; flex-direction:column; gap:6px; }
+.es-hl { display:flex; align-items:flex-start; gap:8px; font-size:.75rem; color:var(--text); line-height:1.4; }
+.es-hl-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.es-dept-row { display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:.72rem; }
+.es-dept-row:last-child { border-bottom:none; }
+.es-dept-name { color:var(--text); font-weight:600; }
+.es-dept-bar-wrap { flex:1; margin:0 10px; height:5px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+.es-dept-bar { height:100%; border-radius:3px; background:var(--blue); }
+.es-dept-val { color:var(--muted); font-weight:700; min-width:28px; text-align:right; }
+.es-risk-row { display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:.72rem; }
+.es-risk-row:last-child { border-bottom:none; }
+.es-risk-badge { font-size:.55rem; font-weight:800; padding:2px 6px; border-radius:4px; letter-spacing:.05em; }
+.es-footer { margin-top:24px; display:flex; align-items:center; justify-content:space-between; }
+.es-footer-note { font-size:.62rem; color:var(--faint); }
+.es-print-btn { background:var(--blue); color:#fff; border:none; border-radius:8px; padding:8px 18px; font-size:.75rem; font-weight:700; cursor:pointer; transition:opacity .15s; }
+.es-print-btn:hover { opacity:.85 }
+@media print {
+  .header,.tab-nav,.es-print-btn,.footer { display:none!important; }
+  #panel-execsummary { display:block!important; }
+  .tab-panel { display:block!important; }
+  body { background:#fff!important; color:#000!important; }
+  .es-kpi,.es-card { background:#f8f8f8!important; border-color:#ddd!important; }
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:1200px) { .kpi-grid,.insights-grid,.kpi-bi-grid { grid-template-columns:repeat(3,1fr); } .kpi-grid-5 { grid-template-columns:repeat(3,1fr); } }
+@media(max-width:900px)  { .grid-2,.grid-3 { grid-template-columns:1fr; } .kpi-grid,.kpi-grid-5,.kpi-bi-grid { grid-template-columns:repeat(2,1fr); } .insights-grid { grid-template-columns:repeat(2,1fr); } .container { padding:16px 16px 40px; } }
+@media(max-width:500px)  { .kpi-grid,.kpi-grid-5,.kpi-bi-grid { grid-template-columns:1fr 1fr; } .upload-box { padding:36px 26px; } .header { padding:14px 16px; } }
+</style>
+</head>
+<body>
+
+<!-- ══ UPLOAD SCREEN ══ -->
+<div id="uploadScreen">
+  <div class="upload-box">
+    <div class="upload-logo">📊</div>
+    <div class="upload-badge">HR Analytics Platform</div>
+    <div class="upload-title">Headcount Dashboard</div>
+    <div class="upload-sub">Upload your Excel file to instantly generate an executive-grade workforce intelligence report</div>
+
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-icon">📂</div>
+      <div class="drop-text">Click or drop file here</div>
+      <div class="drop-hint">.xlsx / .xls files supported</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+    <div class="file-selected" id="fileSelected"></div>
+
+    <div class="field-name-row">
+      <div class="field-label">Dashboard Title (optional)</div>
+      <input type="text" class="field-input" id="dashTitle" placeholder="e.g. March 2026 Headcount">
+    </div>
+
+    <div class="period-row">
+      <div>
+        <div class="field-label">Period Start Date</div>
+        <input type="date" class="field-input" id="periodStart">
+      </div>
+      <div>
+        <div class="field-label">Period End Date</div>
+        <input type="date" class="field-input" id="periodEnd">
+      </div>
+    </div>
+
+    <button class="btn-generate" id="btnGenerate" disabled onclick="generateDashboard()">
+      Generate Dashboard →
+    </button>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD SCREEN ══ -->
+<div id="dashboardScreen">
+  <header class="header">
+    <div>
+      <div class="header-title">📊 <span id="hTitle">Headcount Dashboard</span></div>
+      <div class="header-sub" id="hSub">All Locations · All Employee Types</div>
+    </div>
+    <div class="header-right">
+      <div class="header-right-btns">
+        <button class="btn-share-link" id="btnShareLink" onclick="shareAsLink()">🔗 Share Link</button>
+        <button class="btn-save-html" onclick="saveAsHTML()">💾 Save HTML</button>
+        <button class="btn-new-upload" onclick="resetToUpload()">⬆ New Upload</button>
+      </div>
+      <div class="header-badge" id="hBadge">📅 Snapshot</div>
+      <div class="header-attrition" id="hAttrition">⚠️ Overall Attrition: —</div>
+    </div>
+  </header>
+
+  <!-- GLOBAL MONTH SELECTOR BAR -->
+  <div class="global-month-bar" id="globalMonthBar" style="display:none;">
+    <span class="gm-label">📅 Month</span>
+    <div id="globalMonthPills" style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;flex:1;"></div>
+  </div>
+
+  <!-- TAB NAVIGATION -->
+  <nav class="tab-nav">
+    <button class="tab-btn" onclick="switchTab('trends')"   id="tab-trends"   style="display:none;">📈 Trends</button>
+    <button class="tab-btn active" onclick="switchTab('overview')"  id="tab-overview">📋 Overview</button>
+    <button class="tab-btn"        onclick="switchTab('onroll')"    id="tab-onroll">🟣 On-roll</button>
+    <button class="tab-btn"        onclick="switchTab('support')"   id="tab-support">🔵 Off-roll</button>
+    <button class="tab-btn"        onclick="switchTab('register')"  id="tab-register">📑 Detail Register</button>
+    <button class="tab-btn"        onclick="switchTab('execsummary')" id="tab-execsummary">⭐ Exec Summary</button>
+    <button class="tab-btn"        onclick="switchTab('openpos')"    id="tab-openpos">🔓 Open Positions</button>
+  </nav>
+
+  <!-- ══ TAB: TRENDS ══ -->
+  <div id="panel-trends" class="tab-panel">
+    <!-- Month Selector Bar -->
+    <div class="month-sel-bar">
+      <span class="month-sel-label">📅 Month Filter</span>
+      <div id="monthSelector" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+    </div>
+
+    <div class="container">
+
+      <!-- ── ALL MONTHS VIEW ── -->
+      <div id="trendAllCharts">
+        <div class="total-strip" id="trendStrip" style="margin-top:4px;"></div>
+        <div class="section-heading" style="margin-top:10px;">💡 Multi-Month Insights</div>
+        <div class="insights-grid" id="trendInsights"></div>
+        <div class="section-heading">📈 Trend Charts</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#1d4ed8;"></span>Total HC — Month over Month</div>
+            <canvas id="chartHCTrend" height="160"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#ef4444;"></span>Attrition Trend (%)</div>
+            <canvas id="chartAttTrend" height="160"></canvas>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#22c55e;"></span>New Joiners vs Exits</div>
+            <canvas id="chartJoinExitTrend" height="160"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#8b5cf6;"></span>On-roll vs Off-roll HC</div>
+            <canvas id="chartTypesTrend" height="160"></canvas>
+          </div>
+        </div>
+        <div class="section-heading">Month-wise Summary</div>
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#334155;"></span>YTD</div>
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>Month</th><th class="r">Opening HC</th><th class="r">Closing HC</th>
+              <th class="r">On-roll</th><th class="r">Off-roll</th>
+              <th class="r">Joiners</th><th class="r">Exits</th>
+              <th class="r">Attrition</th><th class="r">MoM Change</th>
+            </tr></thead>
+            <tbody id="trendTableBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- ── SINGLE MONTH DETAIL VIEW ── -->
+      <div id="trendMonthDetail" style="display:none;">
+        <div class="month-detail-banner" id="monthDetailBanner">
+          <h2 id="monthDetailHeader">Month Detail</h2>
+          <span id="monthDetailSub"></span>
+        </div>
+        <div id="monthDetailKPIs"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#1d4ed8;"></span>HC by Department</div>
+            <canvas id="chartMonthTeam" height="175"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="card-title-dot" style="background:#94a3b8;"></span><span id="chartMonthCmpTitle">vs Previous Month</span></div>
+            <canvas id="chartMonthVsPrev" height="175"></canvas>
+          </div>
+        </div>
+        <div class="section-heading">Department Register</div>
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#334155;"></span>Department-wise Breakdown</div>
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>Type</th><th>Department</th>
+              <th class="r">Opening HC</th><th class="r">Closing HC</th><th class="r">Delta</th>
+            </tr></thead>
+            <tbody id="monthDetailRegisterBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ TAB: OVERVIEW ══ -->
+  <div id="panel-overview" class="tab-panel active">
+    <div class="container">
+      <div class="info-banner" id="infoBanner"></div>
+      <div class="total-strip" id="totalStrip"></div>
+
+      <div class="section-heading" style="margin-top:4px;">🟣 On-roll</div>
+      <div class="kpi-grid" id="kpiOnroll"></div>
+
+      <div class="section-heading">🔵 Off-roll (Off-roll + Consultant + Intern)</div>
+      <div class="kpi-grid" id="kpiSupport"></div>
+
+      <div class="section-heading">💡 Key Insights</div>
+      <div class="insights-grid" id="insightsSection"></div>
+
+      <div class="section-heading">Distribution</div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#f59e0b;"></span>HC by Employee Type</div>
+          <canvas id="chartEmpType" height="150"></canvas>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#10b981;"></span>Total HC by Location</div>
+          <canvas id="chartLocationOv" height="150"></canvas>
+        </div>
+      </div>
+
+      <div class="section-heading">Department Proportion</div>
+      <div class="card">
+        <div class="card-title"><span class="card-title-dot" style="background:#8b5cf6;"></span>Headcount by Department — Closing HC &amp; % Share</div>
+        <div style="position:relative"><canvas id="chartDeptProp"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: ONROLL ══ -->
+  <div id="panel-onroll" class="tab-panel">
+    <div class="container">
+      <div class="section-heading" style="margin-top:4px;">🟣 On-roll Headcount</div>
+      <div class="kpi-grid" id="kpiOnrollDetail"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#6366f1;"></span>On-roll — by Location</div>
+          <canvas id="chartOnrollLoc" height="140"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#8b5cf6;"></span>On-roll — by Team</div>
+          <canvas id="chartOnrollTeam" height="140"></canvas>
+        </div>
+      </div>
+      <div class="section-heading">On-roll Register</div>
+      <div class="card">
+        <div class="card-title"><span class="card-title-dot" style="background:#6366f1;"></span>On-roll Detail</div>
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Type</th><th>Location</th><th>Team</th>
+            <th class="r" id="thOpenOnroll">Opening HC</th><th class="r">New Joiners</th>
+            <th class="r">Total Exits</th><th class="r" id="thCloseOnroll">Closing HC</th>
+            <th class="r">Avg HC</th><th class="r">Attrition</th><th class="r">Net Change</th>
+          </tr></thead>
+          <tbody id="tableBodyOnroll"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: SUPPORT ══ -->
+  <div id="panel-support" class="tab-panel">
+    <div class="container">
+      <div class="section-heading" style="margin-top:4px;">🔵 Off-roll Headcount (Off-roll + Consultant + Intern)</div>
+      <div class="kpi-grid" id="kpiSupportDetail"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#0ea5e9;"></span>Off-roll — by Team</div>
+          <canvas id="chartSupportTeam" height="140"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-title-dot" style="background:#14b8a6;"></span>Off-roll — by Location</div>
+          <canvas id="chartSupportLoc" height="140"></canvas>
+        </div>
+      </div>
+      <div class="section-heading">Off-roll Register</div>
+      <div class="card">
+        <div class="card-title"><span class="card-title-dot" style="background:#0ea5e9;"></span>Off-roll Detail (Off-roll + Consultant + Intern)</div>
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Type</th><th>Location</th><th>Team</th>
+            <th class="r" id="thOpenSupport">Opening HC</th><th class="r">New Joiners</th>
+            <th class="r">Total Exits</th><th class="r" id="thCloseSupport">Closing HC</th>
+            <th class="r">Avg HC</th><th class="r">Attrition</th><th class="r">Net Change</th>
+          </tr></thead>
+          <tbody id="tableBodySupport"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: DETAIL REGISTER ══ -->
+  <div id="panel-register" class="tab-panel">
+    <div class="container">
+      <div class="section-heading" style="margin-top:4px;">Department-wise Headcount Summary</div>
+      <div class="card">
+        <div class="card-title"><span class="card-title-dot" style="background:#334155;"></span>Department Register</div>
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Type</th>
+            <th>Department</th>
+            <th class="r" id="thOpen">Opening HC</th>
+            <th class="r" id="thClose">Closing HC</th>
+            <th class="r">Delta</th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: OPEN POSITIONS ══ -->
+  <div id="panel-openpos" class="tab-panel">
+    <div class="container">
+      <div id="openposContent"></div>
+    </div>
+  </div>
+
+  <div class="footer" id="footerText">Headcount Dashboard</div>
+
+  <!-- ══ TAB: EXEC SUMMARY ══ -->
+  <div id="panel-execsummary" class="tab-panel">
+    <div class="container">
+      <div id="execSummaryContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Token Modal -->
+<div id="tokenModal">
+  <div class="token-box">
+    <h3>🔑 One-Time Setup: GitHub Token</h3>
+    <p>Required to publish dashboards and get shareable links.</p>
+    <div class="token-steps">
+      <b>How to get your token:</b><br>
+      1. Go to <b>github.com → Settings → Developer settings</b><br>
+      2. Click <b>Personal access tokens → Tokens (classic)</b><br>
+      3. Click <b>Generate new token</b> → select scope: <b>repo</b><br>
+      4. Copy the token and paste below
+    </div>
+    <div class="token-input-row">
+      <input class="token-input" id="tokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <button class="token-save-btn" onclick="saveToken()">Save &amp; Share</button>
+    </div>
+    <button class="token-cancel-btn" onclick="document.getElementById('tokenModal').classList.remove('open')">Cancel</button>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div id="shareModal">
+  <div class="share-box">
+    <h3>🔗 Share Dashboard Link</h3>
+    <p>Anyone with this link can view the dashboard — no login required.</p>
+    <div id="shareUploadStatus" style="font-size:0.78rem;font-weight:700;color:#16a34a;margin-bottom:10px;display:none;"></div>
+    <div class="share-url-row">
+      <input class="share-url-input" id="shareUrlInput" readonly>
+      <button class="share-copy-btn" onclick="copyShareUrl()">Copy</button>
+    </div>
+    <div class="share-note" style="margin-top:10px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:9px 12px;color:#92400e;font-size:0.76rem;line-height:1.6;">
+      ⏳ <b>GitHub Pages takes 5–10 minutes to go live</b> after upload.<br>
+      If you see a 404, wait a few minutes then click the button below to check.
+    </div>
+    <button onclick="window.open(document.getElementById('shareUrlInput').value,'_blank')" style="margin-top:10px;width:100%;background:#0e4d8b;color:#fff;border:none;border-radius:8px;padding:9px;font-size:0.82rem;font-weight:700;cursor:pointer;">🌐 Open Link (Test if Live)</button>
+    <button class="share-close" onclick="document.getElementById('shareModal').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script>
+/* ════════ GLOBALS ════════ */
+let parsedRows = [];
+let chartInstances = {};
+let allSheetsData = {};
+let allMonthMetrics = [];
+let openLabel  = 'Opening HC';
+let closeLabel = 'Closing HC';
+const EXCLUDED_MONTHS = ['apr-25', 'april-25', 'apr 25', 'apr\'25'];
+let uploadedMonths = [];
+let addMonthTempRows = [];
+let addMonthTempSheets = {};
+let _currentMonthIdx = -1;
+
+/* ════════ TABS ════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+/* ════════ FILE UPLOAD ════════ */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      allSheetsData = {};
+      wb.SheetNames.forEach(name => {
+        const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' });
+        if (r.length) allSheetsData[name] = r;
+      });
+      const names = Object.keys(allSheetsData);
+      parsedRows = allSheetsData[names[names.length - 1]] || [];
+      const sel = document.getElementById('fileSelected');
+      sel.style.display = 'block';
+      if (names.length > 1) {
+        sel.textContent = `✅ ${file.name} — ${names.length} months detected: ${names.join(' · ')}`;
+      } else {
+        sel.textContent = `✅ ${file.name} — ${parsedRows.length} rows loaded`;
+      }
+      document.getElementById('btnGenerate').disabled = false;
+      const titleEl = document.getElementById('dashTitle');
+      if (!titleEl.value) titleEl.value = file.name.replace(/\.(xlsx|xls)$/i, '');
+    } catch(err) { alert('File read error: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ════════ COLUMN DETECTION ════════ */
+const COL_MAP = {
+  type:     ['onroll/offroll','type','employee type','emp type','employment type','category'],
+  location: ['location','city','city name','loc','office'],
+  team:     ['team','department','dept','function','business unit'],
+  status:   ['status','emp status','employee status','active/inactive'],
+  lwd:      ['lwd','last working day','exit date','last day','lwddate'],
+  exitType: ['type of exit','exit type','separation type','reason','reason for exit'],
+  doj:      ['doj','date of joining','joining date','join date','date joined','doj date'],
+};
+function detectColumns(headers) {
+  const norm = h => h.toString().trim().toLowerCase();
+  const map = {};
+  for (const [field, aliases] of Object.entries(COL_MAP)) {
+    for (const alias of aliases) {
+      const found = headers.find(h => norm(h) === alias);
+      if (found) { map[field] = found; break; }
+    }
+  }
+  return map;
+}
+
+/* ════════ DATE & EXCLUSION HELPERS ════════ */
+function toDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  if (typeof val === 'number') { const d = new Date(Math.round((val - 25569) * 86400 * 1000)); return isNaN(d) ? null : d; }
+  const d = new Date(val); return isNaN(d) ? null : d;
+}
+function fmtDate(d) { if (!d) return ''; return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
+function fmtMonthYear(d) {
+  if (!d) return null;
+  return `${d.toLocaleDateString('en-GB',{month:'short'})}-${d.toLocaleDateString('en-GB',{year:'2-digit'})}`;
+}
+function inRange(date, start, end) {
+  if (!date || !start || !end) return false;
+  const d = toDate(date); if (!d) return false;
+  return d >= start && d <= end;
+}
+function isExcludedMonth(label) {
+  if (!label) return false;
+  const l = label.toLowerCase().trim();
+  return EXCLUDED_MONTHS.some(m => l === m || l.startsWith(m) || l.includes(m));
+}
+
+/* ════════ YTD AGGREGATION ════════ */
+function buildYTDRows(mm) {
+  const groups = {};
+  mm.forEach(m => {
+    (m.rows || []).forEach(r => {
+      const k = `${r.type}||${r.loc}||${r.team}`;
+      if (!groups[k]) {
+        groups[k] = { type: r.type, loc: r.loc, team: r.team,
+                      opening: r.opening, closing: 0, joiners: 0, exits: 0, vol: 0, co: 0, onNotice: 0 };
+      }
+      groups[k].closing   = r.closing;
+      groups[k].joiners  += r.joiners  || 0;
+      groups[k].exits    += r.exits    || 0;
+      groups[k].vol      += r.vol      || 0;
+      groups[k].co       += r.co       || 0;
+      groups[k].onNotice  = r.onNotice || 0;
+    });
+  });
+  return Object.values(groups).map(g => {
+    const avg = (g.opening + g.closing) / 2;
+    const attAvg = (g.opening + g.closing + (g.onNotice||0)) / 2;
+    const att = attAvg > 0 ? Math.min(100, Math.max(0, g.exits - (g.onNotice||0)) / attAvg * 100) : 0;
+    return { ...g, avg, att };
+  });
+}
+
+function buildYTDAggRows(mm) {
+  return buildYTDRows(mm).map(r => ({
+    'Type':                 r.type,
+    'Location':             r.loc,
+    'Team':                 r.team,
+    'Opening HC':           r.opening,
+    'Closing HC':           r.closing,
+    'New Joiners':          r.joiners,
+    'Total Exits':          r.exits,
+    'Voluntary Resigned':   r.vol,
+    'Initiated By Company': r.co,
+    'Average HC':           r.avg,
+    'Attrition':            r.att,
+  }));
+}
+
+/* ════════ GLOBAL MONTH SELECTOR ════════ */
+function updateGlobalMonthSelector() {
+  const bar = document.getElementById('globalMonthBar');
+  const container = document.getElementById('globalMonthPills');
+  if (!uploadedMonths.length) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  let html = '';
+  if (uploadedMonths.length > 1) {
+    html += `<span class="gmpill all-m${_currentMonthIdx === -1 ? ' active' : ''}" onclick="selectUploadedMonth(-1)">YTD</span>`;
+  }
+  uploadedMonths.forEach((m, i) => {
+    html += `<span class="gmpill${_currentMonthIdx === i ? ' active' : ''}" onclick="selectUploadedMonth(${i})">${m.label}</span>`;
+  });
+  html += `<span class="gmpill add-pill" onclick="openAddMonthModal()">➕ Add Month</span>`;
+  container.innerHTML = html;
+}
+
+function selectUploadedMonth(idx) {
+  _currentMonthIdx = idx;
+  if (idx === -1) {
+    allSheetsData = {};
+    uploadedMonths.forEach(m => { allSheetsData[m.label] = m.rows; });
+    // Build YTD aggregated rows from all months
+    const sheetNames = Object.keys(allSheetsData);
+    const mm = sheetNames.filter(n => !isExcludedMonth(n)).map(n => {
+      const um = uploadedMonths.find(m => m.label === n);
+      return processSheetToMetrics(allSheetsData[n], n, um ? um.startDate : null, um ? um.endDate : null);
+    }).filter(Boolean);
+    parsedRows = mm.length > 0 ? buildYTDAggRows(mm) : uploadedMonths[uploadedMonths.length - 1].rows;
+    // Set period to full YTD range so labels are meaningful
+    document.getElementById('periodStart').value = uploadedMonths[0].startStr;
+    document.getElementById('periodEnd').value = uploadedMonths[uploadedMonths.length - 1].endStr;
+    document.getElementById('dashTitle').value = 'YTD Overview';
+  } else {
+    const m = uploadedMonths[idx];
+    parsedRows = m.rows;
+    allSheetsData = { [m.label]: m.rows };
+    document.getElementById('periodStart').value = m.startStr;
+    document.getElementById('periodEnd').value = m.endStr;
+    document.getElementById('dashTitle').value = m.label;
+  }
+  generateDashboard(true);
+  updateGlobalMonthSelector();
+}
+
+/* ════════ ADD MONTH MODAL ════════ */
+function openAddMonthModal() {
+  addMonthTempRows = [];
+  addMonthTempSheets = {};
+  document.getElementById('addmFileSel').style.display = 'none';
+  document.getElementById('addmFileSel').textContent = '';
+  document.getElementById('addmStart').value = '';
+  document.getElementById('addmEnd').value = '';
+  document.getElementById('addmLabel').value = '';
+  document.getElementById('btnAddmSubmit').disabled = true;
+  document.getElementById('addmFileInput').value = '';
+  document.getElementById('addMonthModal').classList.add('open');
+}
+
+function closeAddMonthModal() {
+  document.getElementById('addMonthModal').classList.remove('open');
+}
+
+function onAddmDateChange() {
+  const endStr   = document.getElementById('addmEnd').value;
+  const startStr = document.getElementById('addmStart').value;
+  const ref = endStr || startStr;
+  if (ref) {
+    const auto = fmtMonthYear(new Date(ref));
+    if (auto) document.getElementById('addmLabel').value = auto;
+  }
+  checkAddMonthReady();
+}
+
+function checkAddMonthReady() {
+  const hasFile = addMonthTempRows.length > 0;
+  const hasStart = !!document.getElementById('addmStart').value;
+  const hasEnd = !!document.getElementById('addmEnd').value;
+  document.getElementById('btnAddmSubmit').disabled = !(hasFile && hasStart && hasEnd);
+}
+
+function handleAddMonthFileDrop(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      addMonthTempSheets = {};
+      wb.SheetNames.forEach(name => {
+        const r = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' });
+        if (r.length) addMonthTempSheets[name] = r;
+      });
+      const names = Object.keys(addMonthTempSheets);
+      addMonthTempRows = addMonthTempSheets[names[names.length - 1]] || [];
+      const sel = document.getElementById('addmFileSel');
+      sel.style.display = 'block';
+      sel.textContent = `✅ ${file.name} — ${addMonthTempRows.length} rows loaded`;
+      checkAddMonthReady();
+    } catch(err) { alert('File read error: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function submitAddMonth() {
+  const startStr = document.getElementById('addmStart').value;
+  const endStr = document.getElementById('addmEnd').value;
+  const customLabel = document.getElementById('addmLabel').value.trim();
+  if (!addMonthTempRows.length || !startStr || !endStr) return;
+  const startDate = new Date(startStr);
+  const endDate = new Date(endStr);
+  const label = customLabel || fmtMonthYear(startDate) || startStr;
+  const existingIdx = uploadedMonths.findIndex(m => m.label === label);
+  if (existingIdx >= 0) {
+    if (!confirm(`"${label}" already exists. Replace it?`)) return;
+    uploadedMonths.splice(existingIdx, 1);
+  }
+  uploadedMonths.push({ label, rows: addMonthTempRows, startStr, endStr, startDate, endDate });
+  uploadedMonths.sort((a, b) => a.startDate - b.startDate);
+  closeAddMonthModal();
+  const newIdx = uploadedMonths.findIndex(m => m.label === label);
+  _currentMonthIdx = newIdx;
+  parsedRows = addMonthTempRows;
+  allSheetsData = { [label]: addMonthTempRows };
+  document.getElementById('periodStart').value = startStr;
+  document.getElementById('periodEnd').value = endStr;
+  generateDashboard(true);
+  updateGlobalMonthSelector();
+}
+
+/* ════════ NORMALIZE TYPE ════════ */
+function normalizeType(val) {
+  const v = (val || '').toString().trim().toLowerCase();
+  if (v.includes('consultant')) return 'Consultant';
+  if (v.includes('intern'))     return 'Intern';
+  if (v.includes('offroll') || v.includes('off roll') || v.includes('off-roll')) return 'Offroll';
+  if (v.includes('onroll')  || v.includes('on roll')  || v.includes('on-roll'))  return 'Onroll';
+  return val || 'Onroll';
+}
+
+/* ════════ AGGREGATED FILE ════════ */
+function isAggregatedFile(headers) {
+  const norm = h => h.toString().trim().toLowerCase();
+  return headers.some(h => {
+    const n = norm(h);
+    return n.includes('closing headcount') || n.includes('opening hc') ||
+           n.includes('total resigned') || n.includes('average hc') ||
+           n.includes('new joiner') || n.includes('closing hc');
+  });
+}
+function detectAggColumns(headers) {
+  const norm = h => h.toString().trim().toLowerCase();
+  const aliases = {
+    opening:  ['opening hc','opening headcount','feb hc','opening'],
+    joiners:  ['new joiner','new joiners','joiner'],
+    exits:    ['total resigned','total exits','exits'],
+    vol:      ['voluntary resigned','voluntary'],
+    co:       ['initiated by company','company initiated'],
+    closing:  ['closing headcount','closing hc','mar hc'],
+    avgHc:    ['average hc','avg hc'],
+    attRate:  ['attrition'],
+    netChange:['increased/decreased','net change','net hc'],
+  };
+  const map = {};
+  for (const [field, als] of Object.entries(aliases)) {
+    for (const alias of als) {
+      const found = headers.find(h => {
+        const n = norm(h);
+        return n.includes(alias) && !isExcludedMonth(n);
+      });
+      if (found) { map[field] = found; break; }
+    }
+  }
+  return map;
+}
+function processAggregatedFile(raw, aggCols, baseCols) {
+  let lastType = '', lastLoc = '';
+  const rows = [];
+  raw.forEach(r => {
+    const typeVal = (r[baseCols.type] || '').toString().trim();
+    const locVal  = (r[baseCols.location] || '').toString().trim();
+    if (typeVal) lastType = typeVal; if (locVal) lastLoc = locVal;
+    const team = (r[baseCols.team] || '').toString().trim();
+    if (!team) return;
+    if (lastType.toLowerCase().includes('grand') || lastType.toLowerCase().includes('total')) return;
+    const type = normalizeType(lastType);
+    const loc  = lastLoc || 'Unknown';
+    const toNum = v => parseFloat((v || '0').toString().replace(/[^0-9.\-]/g, '')) || 0;
+    const opening = toNum(r[aggCols.opening]);
+    const closing = toNum(r[aggCols.closing]);
+    const joiners = toNum(r[aggCols.joiners]);
+    const exits   = toNum(r[aggCols.exits]);
+    const vol     = toNum(r[aggCols.vol]);
+    const co      = toNum(r[aggCols.co]);
+    const avg     = toNum(r[aggCols.avgHc]) || (opening + closing) / 2;
+    const att     = toNum(r[aggCols.attRate]) * (toNum(r[aggCols.attRate]) <= 1 ? 100 : 1) || (avg > 0 ? exits / avg * 100 : 0);
+    rows.push({ type, loc, team, opening, closing, joiners, exits, vol, co, onNotice: 0, avg, att });
+  });
+  return rows;
+}
+
+/* ════════ GENERATE DASHBOARD ════════ */
+function generateDashboard(skipSave) {
+  if (!parsedRows.length) return;
+  const headers = Object.keys(parsedRows[0]);
+  const cols = detectColumns(headers);
+
+  const periodStart = document.getElementById('periodStart').value ? new Date(document.getElementById('periodStart').value) : null;
+  const periodEnd   = document.getElementById('periodEnd').value   ? new Date(document.getElementById('periodEnd').value)   : null;
+
+  // Block April 2025
+  const startLabel = periodStart ? fmtMonthYear(periodStart) : null;
+  const endLabel   = periodEnd   ? fmtMonthYear(periodEnd)   : null;
+  if (isExcludedMonth(startLabel) || isExcludedMonth(endLabel)) {
+    alert('April 2025 data is excluded from this dashboard. Please select a different period.');
+    return;
+  }
+
+  let rows;
+  const banner = document.getElementById('infoBanner');
+
+  if (isAggregatedFile(headers)) {
+    const aggCols = detectAggColumns(headers);
+    rows = processAggregatedFile(parsedRows, aggCols, cols);
+    banner.style.display = 'none';
+  } else {
+    const data = parsedRows.map(r => {
+      const status      = (r[cols.status] || '').toString().trim().toLowerCase();
+      const lwdDate     = toDate(r[cols.lwd]);
+      const dojDate     = toDate(r[cols.doj]);
+      const exitTypeRaw = (r[cols.exitType] || '').toString().trim().toLowerCase();
+      const isActive    = status === 'active' || (!cols.status && !lwdDate);
+      const isOnNotice  = !isActive && status.includes('notice');
+      const isNewJoiner = periodStart ? inRange(dojDate, periodStart, periodEnd) : false;
+      const isVol       = exitTypeRaw.includes('volunt');
+      const isCo        = exitTypeRaw.includes('co') || exitTypeRaw.includes('company') || exitTypeRaw.includes('initiated');
+      return {
+        type: normalizeType(r[cols.type]),
+        loc:  (r[cols.location] || 'Unknown').toString().trim(),
+        team: (r[cols.team]     || 'Unknown').toString().trim(),
+        isActive, isInactive: !isActive, isOnNotice, isNewJoiner, isVol, isCo,
+      };
+    });
+    const isMultiMode = Object.keys(allSheetsData).length > 1;
+    if (!isMultiMode && (!periodStart || !periodEnd)) {
+      banner.style.display = 'block';
+      banner.textContent = '⚠️ Both Period Start and End dates are required for New Joiners count. Please set both dates and regenerate.';
+    } else {
+      banner.style.display = 'none';
+    }
+    const groupKey = r => `${r.type}||${r.loc}||${r.team}`;
+    const groups = {};
+    data.forEach(r => {
+      const k = groupKey(r);
+      if (!groups[k]) groups[k] = { type: r.type, loc: r.loc, team: r.team, closing: 0, exits: 0, joiners: 0, vol: 0, co: 0, onNotice: 0 };
+      if (r.isActive)    groups[k].closing++;
+      if (r.isInactive)  groups[k].exits++;
+      if (r.isNewJoiner) groups[k].joiners++;
+      if (r.isVol)       groups[k].vol++;
+      if (r.isCo)        groups[k].co++;
+      if (r.isOnNotice)  groups[k].onNotice++;
+    });
+    rows = Object.values(groups).map(g => {
+      const opening = g.closing + g.exits - g.joiners;
+      const avg     = (opening + g.closing) / 2;
+      const _exited = Math.max(0, g.exits - (g.onNotice||0));
+      const _attAvg = (opening + g.closing + (g.onNotice||0)) / 2;
+      const att     = _attAvg > 0 ? Math.min(100, _exited / _attAvg * 100) : 0;
+      return { ...g, opening, avg, att };
+    });
+  }
+
+  const typeOrder = { Onroll: 0, Offroll: 1, Consultant: 2, Intern: 3 };
+  rows.sort((a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) || b.closing - a.closing);
+
+  const sum = (arr, f) => arr.reduce((s, r) => s + (r[f] || 0), 0);
+
+  // Segment rows
+  const onrollRows     = rows.filter(r => r.type === 'Onroll');
+  const supportRows = rows.filter(r => r.type !== 'Onroll');
+
+  function segTotals(arr) {
+    const open = sum(arr,'opening'), close = sum(arr,'closing');
+    const exits = sum(arr,'exits'), join = sum(arr,'joiners');
+    const vol = sum(arr,'vol'), co = sum(arr,'co');
+    const onNotice = sum(arr,'onNotice');
+    const avg = (open + close) / 2;
+    const exited = Math.max(0, exits - onNotice);
+    const attAvg = (open + close + onNotice) / 2;
+    const att = attAvg > 0 ? Math.min(100, exited / attAvg * 100) : 0;
+    return { open, close, exits, join, vol, co, onNotice, avg, att };
+  }
+  const or = segTotals(onrollRows);
+  const sr = segTotals(supportRows);
+
+  const allOpening = sum(rows,'opening'), allClosing = sum(rows,'closing');
+  const allExits = sum(rows,'exits'), allJoiners = sum(rows,'joiners');
+  const allVol = sum(rows,'vol'), allCo = sum(rows,'co');
+  const allOnNotice = sum(rows,'onNotice');
+  const allAvg = (allOpening + allClosing) / 2;
+  const allAttAvg = (allOpening + allClosing + allOnNotice) / 2;
+  const allAtt = allAttAvg > 0 ? Math.min(100, Math.max(0, allExits - allOnNotice) / allAttAvg * 100) : 0;
+
+openLabel  = (startLabel && !isExcludedMonth(startLabel)) ? startLabel : 'Opening HC';
+  closeLabel = (endLabel   && !isExcludedMonth(endLabel))   ? endLabel   : 'Closing HC';
+
+  // Update table headers
+  ['thOpen','thOpenOnroll','thOpenSupport'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = openLabel;
+  });
+  ['thClose','thCloseOnroll','thCloseSupport'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = closeLabel;
+  });
+
+  const title = document.getElementById('dashTitle').value || 'Headcount Dashboard';
+  const periodLabel = periodStart ? `${fmtDate(periodStart)} → ${fmtDate(periodEnd || new Date())}` : 'All Period';
+  document.getElementById('hTitle').textContent     = title;
+  document.getElementById('hSub').textContent       = `Period: ${periodLabel} · All Locations`;
+  document.getElementById('hBadge').textContent     = `📅 Snapshot: ${fmtDate(new Date())}`;
+  document.getElementById('hAttrition').textContent = `⚠️ Overall Attrition: ${allAtt.toFixed(2)}%`;
+  document.getElementById('footerText').textContent = `Headcount Dashboard · ${title} · ${periodLabel}`;
+
+  // KPI sets
+  function kpi6(t, c_close, c_joiners, c_onnotice, c_inactive, c_att, c_net) {
+    const onN = t.onNotice || 0;
+    const inactive = Math.max(0, (t.exits || 0) - onN);
+    return kpiCard(c_close,   '✅', closeLabel,    t.close,              'End of period') +
+           kpiCard(c_joiners, '🎉', 'New Joiners',  t.join,               'Added this period') +
+           kpiCard(c_onnotice,'📋', 'On Notice',     onN,                  'Serving notice period') +
+           kpiCard(c_inactive,'🚪', 'Exited',        inactive,             'Exited') +
+           kpiCard(c_att,     '📉', 'Attrition',     t.att.toFixed(2)+'%', `Avg HC: ${t.avg.toFixed(0)}`) +
+           kpiCard(c_net,     '🔢', 'Net Change',    ((t.join||0)-inactive>0?'+':'')+((t.join||0)-inactive), `Joiners: ${t.join||0} · Exited: ${inactive}`, (t.join||0)-inactive>0?'#16a34a':(t.join||0)-inactive<0?'#dc2626':'#94a3b8');
+  }
+
+  // Overview KPIs
+  document.getElementById('kpiOnroll').innerHTML  = kpi6(or, 'c-teal','c-green','c-amber','c-red','c-purple','c-blue');
+  document.getElementById('kpiSupport').innerHTML = kpi6(sr, 'c-teal','c-green','c-amber','c-red','c-indigo','c-blue');
+
+  // Detail tab KPIs
+  document.getElementById('kpiOnrollDetail').innerHTML  = kpi6(or, 'c-teal','c-green','c-amber','c-red','c-purple','c-blue');
+  document.getElementById('kpiSupportDetail').innerHTML = kpi6(sr, 'c-teal','c-green','c-amber','c-red','c-indigo','c-blue');
+
+  // Total strip
+  const allExited = Math.max(0, allExits - allOnNotice);
+  const netChange = allJoiners - allExited;
+  document.getElementById('totalStrip').innerHTML = `
+    <span class="strip-label">Grand Total</span>
+    <div class="strip-items">
+      ${stripItem(openLabel, allOpening, '#93c5fd')}
+      ${stripItem(closeLabel, allClosing, '#6ee7b7')}
+      ${stripItem('On-roll', or.close, '#c4b5fd')}
+      ${stripItem('Off-roll', sr.close, '#7dd3fc')}
+      ${stripItem('New Joiners', allJoiners, '#86efac')}
+      ${stripItem('Exited', allExited, '#f87171')}
+      ${stripItem('On Notice', allOnNotice, '#fb923c')}
+      ${stripItem('Attrition', allAtt.toFixed(2)+'%', '#fcd34d')}
+      ${stripItem('Net Change', (netChange>0?'+':'')+netChange, netChange>0?'#86efac':netChange<0?'#f87171':'#94a3b8')}
+    </div>`;
+
+  // Tables
+  renderRegisterTable(rows, 'tableBody');
+  renderTable(onrollRows,  or.open, or.join, or.exits, or.vol, or.co, or.close, or.avg, or.att, 'tableBodyOnroll');
+  renderTable(supportRows, sr.open, sr.join, sr.exits, sr.vol, sr.co, sr.close, sr.avg, sr.att, 'tableBodySupport');
+
+  // Charts
+  destroyCharts();
+  renderDoughnutChart('chartEmpType', rows);
+  renderGroupedBar('chartLocationOv',     groupBy(rows,'loc'),              '#93c5fd','#1d4ed8');
+  renderDeptPropChart('chartDeptProp', rows);
+  renderGroupedBar('chartOnrollLoc',      groupBy(onrollRows,'loc'),        '#a5b4fc','#4338ca');
+  renderGroupedBar('chartOnrollTeam',     groupBy(onrollRows,'team'),       '#c4b5fd','#6d28d9');
+  renderGroupedBar('chartSupportTeam', groupBy(supportRows,'team'), '#7dd3fc','#0369a1');
+  renderGroupedBar('chartSupportLoc',  groupBy(supportRows,'loc'),  '#86efac','#15803d');
+
+  // Insights
+  document.getElementById('insightsSection').innerHTML = renderInsights(or, sr, rows, allOpening, allClosing, allJoiners, allExits, allAtt);
+
+  // Executive Summary
+  renderExecSummary(rows, or, sr, allOpening, allClosing, allJoiners, allExits, allVol, allCo, allAtt, allAvg, title, periodLabel);
+
+  // Open Positions
+  renderOpenPositions(rows);
+
+  // Multi-month trends
+  const sheetNames = Object.keys(allSheetsData);
+  const trendTab = document.getElementById('tab-trends');
+  const isMulti = sheetNames.length > 1;
+  if (isMulti) {
+    const monthMetrics = sheetNames.filter(n => !isExcludedMonth(n)).map(n => {
+      const um = uploadedMonths.find(m => m.label === n);
+      return processSheetToMetrics(allSheetsData[n], n, um ? um.startDate : null, um ? um.endDate : null);
+    }).filter(Boolean);
+    if (monthMetrics.length > 1) {
+      trendTab.style.display = '';
+      renderTrends(monthMetrics);
+    } else {
+      trendTab.style.display = 'none';
+    }
+    document.getElementById('hSub').textContent = `Multi-Month Trend · ${sheetNames.join(' → ')} · All Locations`;
+  } else {
+    trendTab.style.display = 'none';
+  }
+
+  // Save this month to uploadedMonths on first upload (not on rerender)
+  if (!skipSave) {
+    const startStr = document.getElementById('periodStart').value;
+    const endStr   = document.getElementById('periodEnd').value;
+    const startDate = startStr ? new Date(startStr) : new Date(0);
+    const endDate   = endStr   ? new Date(endStr)   : new Date();
+    const labelDate = endStr ? endDate : (startStr ? startDate : null);
+    const label = (labelDate ? fmtMonthYear(labelDate) : null) ||
+                  document.getElementById('dashTitle').value.trim() || 'Month 1';
+    const existingIdx = uploadedMonths.findIndex(m => m.label === label);
+    if (existingIdx >= 0) uploadedMonths.splice(existingIdx, 1);
+    uploadedMonths.push({ label, rows: parsedRows, startStr, endStr, startDate, endDate });
+    uploadedMonths.sort((a, b) => a.startDate - b.startDate);
+    _currentMonthIdx = uploadedMonths.findIndex(m => m.label === label);
+  }
+  updateGlobalMonthSelector();
+
+  document.getElementById('uploadScreen').style.display = 'none';
+  document.getElementById('dashboardScreen').style.display = 'block';
+  switchTab(isMulti ? 'trends' : 'overview');
+  window.scrollTo(0, 0);
+}
+
+/* ════════ UI HELPERS ════════ */
+function kpiCard(cls, icon, label, value, sub, color) {
+  const valColor = color ? `color:${color};` : '';
+  return `<div class="kpi ${cls}">
+    <div class="kpi-icon">${icon}</div>
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value" style="${valColor}">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+  </div>`;
+}
+function stripItem(label, val, color) {
+  return `<div class="strip-item">
+    <div class="strip-item-label">${label}</div>
+    <div class="strip-item-val" style="color:${color}">${val}</div>
+  </div>`;
+}
+function resetToUpload() {
+  document.getElementById('dashboardScreen').style.display = 'none';
+  document.getElementById('uploadScreen').style.display = 'flex';
+  document.getElementById('fileSelected').style.display = 'none';
+  document.getElementById('btnGenerate').disabled = true;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('tab-trends').style.display = 'none';
+  parsedRows = [];
+  allSheetsData = {};
+  uploadedMonths = [];
+  _currentMonthIdx = -1;
+  document.getElementById('globalMonthBar').style.display = 'none';
+}
+function saveToken() {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (!val) return;
+  localStorage.setItem('gh_share_pat', val);
+  document.getElementById('tokenModal').classList.remove('open');
+  doShare(val);
+}
+async function shareAsLink() {
+  const token = localStorage.getItem('gh_share_pat');
+  if (!token) { document.getElementById('tokenInput').value = ''; document.getElementById('tokenModal').classList.add('open'); document.getElementById('tokenInput').focus(); return; }
+  doShare(token);
+}
+async function doShare(token) {
+  const btn = document.getElementById('btnShareLink');
+  btn.innerHTML = '<span class="share-spinner"></span>Publishing...'; btn.disabled = true;
+  try {
+    const html = buildShareableHTML();
+    const title = (document.getElementById('hTitle')?.textContent || 'Dashboard').trim();
+    const date  = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+    const fname = `${title.replace(/[^a-z0-9]/gi,'_')}_${date}.html`;
+    const path  = `outputs/${fname}`;
+    const owner = 'pramod-ops', repo = 'Headcount-Dashboard';
+    let sha = null;
+    const chk = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{ headers:{ Authorization:`token ${token}` }});
+    if (chk.ok) sha = (await chk.json()).sha;
+    const bytes = new TextEncoder().encode(html);
+    const content = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''));
+    const body = { message:`Share dashboard: ${fname}`, content };
+    if (sha) body.sha = sha;
+    const put = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{ method:'PUT', headers:{ Authorization:`token ${token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+    if (!put.ok) { const err = await put.json(); if (err.message?.toLowerCase().includes('bad credential')) localStorage.removeItem('gh_share_pat'); throw new Error(err.message || 'GitHub API error'); }
+    const pageUrl = `https://${owner}.github.io/${repo}/${path}`;
+    document.getElementById('shareUrlInput').value = pageUrl;
+    const statusEl = document.getElementById('shareUploadStatus');
+    statusEl.textContent = '✅ File uploaded to GitHub successfully!';
+    statusEl.style.display = 'block';
+    document.getElementById('shareModal').classList.add('open');
+  } catch(err) { alert('Could not create link:\n' + err.message); }
+  finally { btn.innerHTML = '🔗 Share Link'; btn.disabled = false; }
+}
+function copyShareUrl() {
+  const inp = document.getElementById('shareUrlInput'); inp.select();
+  navigator.clipboard.writeText(inp.value).then(() => { const btn = document.querySelector('.share-copy-btn'); btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); });
+}
+function buildShareableHTML() {
+  const styles = Array.from(document.styleSheets)
+    .map(ss => { try { return Array.from(ss.cssRules).map(r => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
+  const date = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+
+  // Helper: capture DOM + chart configs for current rendered state
+  function captureSnap(snapIdx) {
+    const dash = document.getElementById('dashboardScreen').cloneNode(true);
+    const configs = {};
+    [...document.getElementById('dashboardScreen').querySelectorAll('canvas')].forEach(cv => {
+      const inst = Chart.getChart(cv);
+      if (!inst) return;
+      const newId = `s${snapIdx}_${cv.id}`;
+      configs[newId] = { type: inst.config.type, data: JSON.parse(JSON.stringify(inst.config.data)), options: JSON.parse(JSON.stringify(inst.config.options)) };
+      const cloneCanvas = dash.querySelector(`#${cv.id}`);
+      if (cloneCanvas) { cloneCanvas.id = newId; cloneCanvas.removeAttribute('width'); cloneCanvas.removeAttribute('height'); cloneCanvas.style.cssText = ''; }
+    });
+    dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(el => el.remove());
+    return { html: dash.innerHTML, configs };
+  }
+
+  // Multi-month: capture configs per snapshot, recreate charts in shared HTML
+  if (uploadedMonths.length > 1) {
+    const originalIdx = _currentMonthIdx;
+    const snaps = [];
+    [-1, ...uploadedMonths.map((_, i) => i)].forEach((idx, snapIdx) => {
+      selectUploadedMonth(idx);
+      const { html, configs } = captureSnap(snapIdx);
+      snaps.push({ idx, label: idx === -1 ? 'YTD' : uploadedMonths[idx].label, html, configs });
+    });
+    selectUploadedMonth(originalIdx);
+    updateGlobalMonthSelector();
+
+    const title = document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
+    const active = Math.max(0, snaps.findIndex(s => s.idx === originalIdx));
+    const allConfigs = {};
+    snaps.forEach(s => Object.assign(allConfigs, s.configs));
+    // Pre-compute label strings for round charts — formatter functions don't survive JSON.stringify
+    Object.values(allConfigs).forEach(cfg => {
+      if (cfg.type === 'doughnut' || cfg.type === 'pie') {
+        const d = (cfg.data.datasets[0]||{}).data||[], t = d.reduce((a,b)=>a+b,0);
+        cfg._dlabels = d.map(v => (t && v > 0 && v !== 1) ? v+'\n('+Math.round(v/t*100)+'%)' : '');
+      }
+    });
+
+    const pills = snaps.map((s, i) =>
+      `<span class="gmpill${s.idx === -1 ? ' all-m' : ''}${i === active ? ' active' : ''}" onclick="switchSnap(${i})">${s.label}</span>`
+    ).join('');
+    const snapDivs = snaps.map((s, i) =>
+      `<div class="msnap" id="msnap${i}" style="display:${i === active ? 'block' : 'none'}">${s.html}</div>`
+    ).join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
+<style>${styles}</style></head><body>
+<div class="global-month-bar" style="top:0!important;"><span class="gm-label">📅 Month</span><div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;">${pills}</div></div>
+${snapDivs}
+<div style="text-align:center;padding:12px;font-size:.7rem;color:#94a3b8;">Saved on ${date}</div>
+<script>
+Chart.register(ChartDataLabels);
+var CS=${active},_done={};
+var _cfgs=${JSON.stringify(allConfigs)};
+function _rf(cfg){if(cfg._dlabels){var s=cfg._dlabels;if(cfg.options&&cfg.options.plugins&&cfg.options.plugins.datalabels)cfg.options.plugins.datalabels.formatter=function(v,ctx){return s[ctx.dataIndex]||'';};}}
+function initSnap(i){if(_done[i])return;_done[i]=1;Object.entries(_cfgs).filter(([id])=>id.startsWith('s'+i+'_')).forEach(([id,cfg])=>{_rf(cfg);var el=document.getElementById(id);if(el)new Chart(el,cfg);});}
+function switchTab(n){var s=document.getElementById('msnap'+CS);if(!s)return;s.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));s.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));var tb=s.querySelector('#tab-'+n);if(tb)tb.classList.add('active');var tp=s.querySelector('#panel-'+n);if(tp)tp.classList.add('active');}
+function switchSnap(i){document.querySelectorAll('.msnap').forEach((d,j)=>d.style.display=j===i?'block':'none');document.querySelectorAll('.gmpill').forEach((p,j)=>p.classList.toggle('active',j===i));CS=i;initSnap(i);}
+function selectTrendMonth(){}function openAddMonthModal(){}
+initSnap(${active});
+<\/script></body></html>`;
+  }
+
+  // Single month: interactive charts
+  const dash = document.getElementById('dashboardScreen').cloneNode(true);
+  const chartConfigs = {};
+  document.getElementById('dashboardScreen').querySelectorAll('canvas').forEach(cv => {
+    const instance = Chart.getChart(cv);
+    if (instance) chartConfigs[cv.id] = { type: instance.config.type, data: JSON.parse(JSON.stringify(instance.config.data)), options: JSON.parse(JSON.stringify(instance.config.options)) };
+  });
+  // Pre-compute label strings for round charts — formatter functions don't survive JSON.stringify
+  Object.values(chartConfigs).forEach(cfg => {
+    if (cfg.type === 'doughnut' || cfg.type === 'pie') {
+      const d = (cfg.data.datasets[0]||{}).data||[], t = d.reduce((a,b)=>a+b,0);
+      cfg._dlabels = d.map(v => (t && v > 0 && v !== 1) ? v+'\n('+Math.round(v/t*100)+'%)' : '');
+    }
+  });
+  dash.querySelectorAll('canvas').forEach(c => { c.removeAttribute('width'); c.removeAttribute('height'); c.style.cssText = ''; });
+  dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(b => b.remove());
+  const title = document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${title}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
+<style>${styles}</style></head><body>${dash.outerHTML}<div style="text-align:center;padding:12px;font-size:.7rem;color:#94a3b8;">Saved on ${date}</div>
+<script>
+Chart.register(ChartDataLabels);
+function switchTab(name){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');document.getElementById('panel-'+name).classList.add('active');}
+function selectTrendMonth(){}function openAddMonthModal(){}
+const _cfgs=${JSON.stringify(chartConfigs)};
+Object.values(_cfgs).forEach(function(cfg){if(cfg._dlabels){var s=cfg._dlabels;if(cfg.options&&cfg.options.plugins&&cfg.options.plugins.datalabels)cfg.options.plugins.datalabels.formatter=function(v,ctx){return s[ctx.dataIndex]||'';};}});
+Object.entries(_cfgs).forEach(([id,cfg])=>{const el=document.getElementById(id);if(el)new Chart(el,cfg);});
+<\/script></body></html>`;
+}
+function saveAsHTML() {
+  const html = buildShareableHTML();
+  const title = (document.getElementById('hTitle')?.textContent||'Headcount Dashboard').trim();
+  const date  = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  a.download = `${title.replace(/[^a-z0-9]/gi,'_')}_${date}.html`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ════════ CHART HELPERS ════════ */
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = '#94a3b8';
+Chart.register(ChartDataLabels);
+
+function hex2rgba(h, a) { const n = parseInt(h.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+function destroyCharts() { Object.values(chartInstances).forEach(c => c.destroy()); chartInstances = {}; }
+
+function groupBy(arr, key) {
+  const m = {};
+  arr.forEach(r => {
+    const k = r[key] || '(blank)';
+    if (!m[k]) m[k] = { label: k, opening: 0, closing: 0 };
+    m[k].opening += r.opening || 0;
+    m[k].closing += r.closing || 0;
+  });
+  return Object.values(m).sort((a,b) => b.closing - a.closing);
+}
+
+function renderGroupedBar(id, data, colorOpen, colorClose) {
+  const el = document.getElementById(id); if (!el) return;
+  chartInstances[id] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [
+        { label: openLabel,  data: data.map(d => d.opening), backgroundColor: colorOpen,  borderRadius: 5 },
+        { label: closeLabel, data: data.map(d => d.closing), backgroundColor: colorClose, borderRadius: 5 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10, font: { size: 10 } } },
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
+          color: '#fff',
+          font: { weight: '700', size: 10 },
+          anchor: 'end',
+          align: 'top',
+          offset: 2,
+          formatter: v => v
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 35 } },
+        y: { grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true, ticks: { font: { size: 9 } }, grace: '20%' }
+      }
+    }
+  });
+}
+
+function renderDeptPropChart(id, rows) {
+  const deptMap = {};
+  rows.forEach(r => {
+    const k = r.team || '(blank)';
+    if (!deptMap[k]) deptMap[k] = { onroll: 0, offroll: 0 };
+    if (r.type === 'Onroll') deptMap[k].onroll += r.closing || 0;
+    else deptMap[k].offroll += r.closing || 0;
+  });
+  const sorted = Object.entries(deptMap)
+    .map(([k, v]) => ({ k, onroll: v.onroll, offroll: v.offroll, total: v.onroll + v.offroll }))
+    .sort((a, b) => b.total - a.total);
+  const grandTotal = sorted.reduce((s, d) => s + d.total, 0);
+  const labels     = sorted.map(d => d.k);
+  const onrollVals = sorted.map(d => d.onroll);
+  const offrollVals= sorted.map(d => d.offroll);
+  const totals     = sorted.map(d => d.total);
+
+  const el = document.getElementById(id); if (!el) return;
+  const h = Math.max(240, sorted.length * 36 + 80);
+  if (el.parentElement) el.parentElement.style.height = h + 'px';
+
+  chartInstances[id] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'On-roll',  data: onrollVals,  backgroundColor: '#6366f1', borderRadius: 3, borderSkipped: false },
+        { label: 'Off-roll', data: offrollVals, backgroundColor: '#0ea5e9', borderRadius: 3, borderSkipped: false }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 55 } },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { padding: 10, boxWidth: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} (${grandTotal > 0 ? (ctx.raw / grandTotal * 100).toFixed(1) : 0}%)` } },
+        datalabels: { display: false }
+      },
+      scales: {
+        x: { stacked: true, grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true, ticks: { font: { size: 9 } } },
+        y: { stacked: true, grid: { display: false }, ticks: { font: { size: 9 }, color: '#cbd5e1' } }
+      }
+    },
+    plugins: [{
+      id: 'deptSegLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx, data } = chart;
+        data.datasets.forEach((dataset, di) => {
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((bar, i) => {
+            const v = dataset.data[i];
+            if (!v || v <= 0) return;
+            const pct = grandTotal > 0 ? (v / grandTotal * 100) : 0;
+            if (pct < 2) return;
+            const cx = (bar.x + bar.base) / 2;
+            const cy = bar.y;
+            const label = `${v} (${pct.toFixed(1)}%)`;
+            ctx.save();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 9px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, cx, cy);
+            ctx.restore();
+          });
+        });
+      }
+    }, {
+      id: 'deptTotals',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+        meta.data.forEach((bar, i) => {
+          const t = totals[i]; if (!t) return;
+          const pct = grandTotal > 0 ? (t / grandTotal * 100).toFixed(1) : 0;
+          ctx.save();
+          ctx.fillStyle = '#e2e8f0';
+          ctx.font = 'bold 10px "Segoe UI", system-ui, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${t} (${pct}%)`, bar.x + 6, bar.y);
+          ctx.restore();
+        });
+      }
+    }]
+  });
+}
+
+function renderDoughnutChart(id, rows) {
+  const DISPLAY_TYPE = { Onroll:'On-roll', Offroll:'Off-roll', Consultant:'Consultant', Intern:'Intern' };
+  const byType = {};
+  rows.forEach(r => { const k = DISPLAY_TYPE[r.type]||r.type; if (!byType[k]) byType[k] = 0; byType[k] += r.closing || 0; });
+  const labels = Object.keys(byType), vals = Object.values(byType);
+  const COLORS = { 'On-roll':'#6366f1', 'Off-roll':'#0ea5e9', Consultant:'#f59e0b', Intern:'#22c55e' };
+  const el = document.getElementById(id); if (!el) return;
+  chartInstances[id] = new Chart(el, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: vals, backgroundColor: labels.map(l => COLORS[l]||'#94a3b8'), borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10, font: { size: 10 } } },
+        datalabels: { display: true, color: '#fff', font: { weight: 'bold', size: 11 }, formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return t ? v+'\n('+Math.round(v/t*100)+'%)' : ''; } }
+      }
+    }
+  });
+}
+
+function renderExitTypeChart(id, vol, co, other) {
+  const labels = [], vals = [], colors = [];
+  if (vol > 0)   { labels.push('Voluntary');     vals.push(vol);   colors.push('#f59e0b'); }
+  if (co > 0)    { labels.push('Co. Initiated'); vals.push(co);    colors.push('#ef4444'); }
+  if (other > 0) { labels.push('Other');         vals.push(other); colors.push('#94a3b8'); }
+  if (!vals.length) { labels.push('No Exits'); vals.push(1); colors.push('#d1fae5'); }
+  const el = document.getElementById(id); if (!el) return;
+  chartInstances[id] = new Chart(el, {
+    type: 'pie',
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10, font: { size: 10 } } },
+        datalabels: { display: true, color: '#fff', font: { weight: 'bold', size: 11 }, formatter: (v, ctx) => { const t = ctx.dataset.data.reduce((a,b)=>a+b,0); return (t && v!==1) ? v+'\n('+Math.round(v/t*100)+'%)' : ''; } }
+      }
+    }
+  });
+}
+
+/* ════════ INSIGHTS ════════ */
+function renderInsights(or, sr, rows, allOpening, allClosing, allJoiners, allExits, allAtt) {
+  const allExited  = rows.reduce((s,r) => s + Math.max(0,(r.exits||0)-(r.onNotice||0)), 0);
+  const netChange  = allJoiners - allExited;
+  const netDir     = netChange > 0 ? '📈 Growing' : netChange < 0 ? '📉 Shrinking' : '↔ Stable';
+  const attLevel  = allAtt > 10 ? '🔴 High' : allAtt > 5 ? '🟡 Moderate' : '🟢 Low';
+  const onPct     = allClosing > 0 ? ((or.close / allClosing) * 100).toFixed(0) : 0;
+  const spPct     = allClosing > 0 ? ((sr.close / allClosing) * 100).toFixed(0) : 0;
+
+  const deptMap = {};
+  rows.forEach(r => { const d = r.team||'Unknown'; if(!deptMap[d]) deptMap[d]=0; deptMap[d]+=r.closing||0; });
+  const topDept = Object.entries(deptMap).sort((a,b)=>b[1]-a[1])[0];
+
+  const exitMap = {};
+  rows.forEach(r => { const d = r.team||'Unknown'; if(!exitMap[d]) exitMap[d]=0; exitMap[d]+=Math.max(0,(r.exits||0)-(r.onNotice||0)); });
+  const topExit = Object.entries(exitMap).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])[0];
+
+  const cards = [
+    { icon:'👥', title:'Workforce Trend',     value: netDir,
+      desc: `Total: ${allOpening} → ${allClosing} &nbsp;|&nbsp; Net ${netChange>=0?'+':''}${netChange}`,
+      color: netChange>=0?'#16a34a':'#dc2626' },
+    { icon:'🟣', title:'On-roll Strength',      value: `${or.close} &nbsp;<span style="font-size:.75rem;font-weight:600">(${onPct}%)</span>`,
+      desc: `${or.join} joined &nbsp;·&nbsp; ${Math.max(0,(or.exits||0)-(or.onNotice||0))} exited`,
+      color:'#6d28d9' },
+    { icon:'🔵', title:'Off-roll Strength',     value: `${sr.close} &nbsp;<span style="font-size:.75rem;font-weight:600">(${spPct}%)</span>`,
+      desc: `Off-roll + Consultant + Intern`,
+      color:'#0369a1' },
+    { icon:'📉', title:'Attrition Rate',       value: `${allAtt.toFixed(2)}%`,
+      desc: `${attLevel} &nbsp;·&nbsp; ${rows.reduce((s,r)=>s+Math.max(0,(r.exits||0)-(r.onNotice||0)),0)} exits this period`,
+      color: allAtt>10?'#dc2626':allAtt>5?'#d97706':'#16a34a' },
+    { icon:'🏆', title:'Largest Department',   value: topDept ? topDept[0] : '—',
+      desc: topDept ? `${topDept[1]} employees` : 'No data',
+      color:'#0e4d8b' },
+    { icon:'🎉', title:'New Joiners',          value: `${allJoiners}`,
+      desc: topExit ? `Most exits: ${topExit[0]} (${topExit[1]})` : 'No exits this period',
+      color:'#15803d' },
+  ];
+  return cards.map(c => `
+    <div class="insight-card" style="border-left-color:${c.color}">
+      <div class="insight-icon">${c.icon}</div>
+      <div class="insight-title">${c.title}</div>
+      <div class="insight-value" style="color:${c.color}">${c.value}</div>
+      <div class="insight-desc">${c.desc}</div>
+    </div>`).join('');
+}
+
+/* ════════ REGISTER TABLE ════════ */
+function renderRegisterTable(rows, tbodyId) {
+  const tbody = document.getElementById(tbodyId); if (!tbody) return;
+  const typeOrder = { Onroll: 0, Offroll: 1, Consultant: 2, Intern: 3 };
+  const typeClass = { Onroll:'b-onroll', Offroll:'b-offroll', Consultant:'b-consultant', Intern:'b-intern' };
+  const map = {};
+  rows.forEach(r => {
+    const key = `${r.type}||${r.team || 'Unknown'}`;
+    if (!map[key]) map[key] = { type: r.type, dept: r.team || 'Unknown', opening: 0, closing: 0 };
+    map[key].opening += r.opening || 0;
+    map[key].closing += r.closing || 0;
+  });
+  const entries = Object.values(map).sort((a, b) =>
+    (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) || b.closing - a.closing
+  );
+  let totalOpen = 0, totalClose = 0, html = '';
+  entries.forEach(e => {
+    const delta = e.closing - e.opening;
+    const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    const cls   = delta > 0 ? 'chg-pos' : delta < 0 ? 'chg-neg' : 'chg-zero';
+    totalOpen  += e.opening;
+    totalClose += e.closing;
+    html += `<tr>
+      <td><span class="badge ${typeClass[e.type] || 'b-offroll'}">${{Onroll:'On-roll',Offroll:'Off-roll'}[e.type]||e.type}</span></td>
+      <td style="font-weight:600;">${e.dept}</td>
+      <td class="r">${e.opening}</td>
+      <td class="r" style="font-weight:700;">${e.closing}</td>
+      <td class="r ${cls}" style="font-size:1rem;letter-spacing:.5px;">${Math.abs(delta) || '—'} ${arrow}</td>
+    </tr>`;
+  });
+  const totalDelta = totalClose - totalOpen;
+  const totalArrow = totalDelta > 0 ? '↑' : totalDelta < 0 ? '↓' : '→';
+  const totalColor = totalDelta < 0 ? '#f87171' : '#86efac';
+  html += `<tr class="total-row">
+    <td colspan="2">Grand Total</td>
+    <td class="r">${totalOpen}</td>
+    <td class="r">${totalClose}</td>
+    <td class="r" style="color:${totalColor};font-size:1rem;">${Math.abs(totalDelta) || '—'} ${totalArrow}</td>
+  </tr>`;
+  tbody.innerHTML = html;
+}
+
+/* ════════ PARSE SHEET NAME → MONTH/YEAR ════════ */
+function parseSheetMonth(name) {
+  const MONS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
+  for (const [m, idx] of Object.entries(MONS)) {
+    if (!n.startsWith(m)) continue;
+    const rest = n.slice(m.length).trim().split(/\s+/)[0];
+    if (!rest) continue;
+    const yr = parseInt(rest);
+    if (!yr) continue;
+    const year = yr < 100 ? 2000 + yr : yr;
+    if (year >= 2020 && year <= 2040) return { year, month: idx };
+  }
+  return null;
+}
+
+/* ════════ MULTI-MONTH: PROCESS ONE SHEET ════════ */
+function processSheetToMetrics(rows, monthName, explicitStart, explicitEnd) {
+  if (!rows || !rows.length) return null;
+  const headers = Object.keys(rows[0]);
+  const cols = detectColumns(headers);
+  let processed;
+  if (isAggregatedFile(headers)) {
+    const aggCols = detectAggColumns(headers);
+    processed = processAggregatedFile(rows, aggCols, cols);
+  } else {
+    const sheetPeriod = parseSheetMonth(monthName);
+    const data = rows.map(r => {
+      const status = (r[cols.status] || '').toString().trim().toLowerCase();
+      const lwdDate = toDate(r[cols.lwd]);
+      const dojDate = toDate(r[cols.doj]);
+      const exitTypeRaw = (r[cols.exitType] || '').toString().trim().toLowerCase();
+      const isActive = status === 'active' || (!cols.status && !lwdDate);
+      const isOnNotice = !isActive && status.includes('notice');
+      const isVol = exitTypeRaw.includes('volunt');
+      const isCo = exitTypeRaw.includes('co') || exitTypeRaw.includes('company') || exitTypeRaw.includes('initiated');
+      const isNewJoiner = dojDate
+        ? (explicitStart && explicitEnd
+            ? inRange(dojDate, explicitStart, explicitEnd)
+            : sheetPeriod
+              ? dojDate.getFullYear() === sheetPeriod.year && dojDate.getMonth() === sheetPeriod.month
+              : false)
+        : false;
+      return {
+        type: normalizeType(r[cols.type]),
+        loc: (r[cols.location] || 'Unknown').toString().trim(),
+        team: (r[cols.team] || 'Unknown').toString().trim(),
+        isActive, isInactive: !isActive, isOnNotice, isVol, isCo, isNewJoiner,
+      };
+    });
+    const groups = {};
+    data.forEach(r => {
+      const k = `${r.type}||${r.loc}||${r.team}`;
+      if (!groups[k]) groups[k] = { type: r.type, loc: r.loc, team: r.team, closing: 0, exits: 0, joiners: 0, vol: 0, co: 0, onNotice: 0 };
+      if (r.isActive)    groups[k].closing++;
+      if (r.isInactive)  groups[k].exits++;
+      if (r.isVol)       groups[k].vol++;
+      if (r.isCo)        groups[k].co++;
+      if (r.isOnNotice)  groups[k].onNotice++;
+      if (r.isNewJoiner) groups[k].joiners++;
+    });
+    processed = Object.values(groups).map(g => {
+      const opening = Math.max(0, g.closing + g.exits - g.joiners);
+      const avg = (opening + g.closing) / 2;
+      const attAvg = (opening + g.closing + (g.onNotice||0)) / 2;
+      const att = attAvg > 0 ? Math.min(100, Math.max(0, g.exits - (g.onNotice||0)) / attAvg * 100) : 0;
+      return { ...g, opening, avg, att };
+    });
+  }
+  const sumF = (arr, f) => arr.reduce((s, r) => s + (r[f] || 0), 0);
+  const onrollRows  = processed.filter(r => r.type === 'Onroll');
+  const supportRows = processed.filter(r => r.type !== 'Onroll');
+  const segT = arr => {
+    const open = sumF(arr,'opening'), close = sumF(arr,'closing');
+    const exits = sumF(arr,'exits'), join = sumF(arr,'joiners');
+    const avg2 = (open + close) / 2;
+    const onN2 = sumF(arr,'onNotice');
+    const attAvg2 = (open + close + onN2) / 2;
+    const att = attAvg2 > 0 ? Math.min(100, Math.max(0, exits - onN2) / attAvg2 * 100) : 0;
+    return { open, close, exits, join, att };
+  };
+  const or = segT(onrollRows);
+  const sr = segT(supportRows);
+  const allOpen     = sumF(processed,'opening'), allClose = sumF(processed,'closing');
+  const allExits    = sumF(processed,'exits'),   allJoin  = sumF(processed,'joiners');
+  const allOnNotice = sumF(processed,'onNotice');
+  const allExited   = Math.max(0, allExits - allOnNotice);
+  const allAttAvg   = (allOpen + allClose + allOnNotice) / 2;
+  const allAtt      = allAttAvg > 0 ? Math.min(100, allExited / allAttAvg * 100) : 0;
+  return { month: monthName, or, sr, allOpen, allClose, allExits, allExited, allJoin, allOnNotice, allAtt, rows: processed };
+}
+
+/* ════════ MULTI-MONTH: RENDER TRENDS ════════ */
+function renderTrends(mm) {
+  allMonthMetrics = mm;
+  renderMonthPills(-1);
+  document.getElementById('trendAllCharts').style.display = '';
+  document.getElementById('trendMonthDetail').style.display = 'none';
+  renderTrendCharts(mm);
+}
+
+function renderMonthPills(selectedIdx) {
+  const mm = allMonthMetrics;
+  let h = `<button class="mpill all-m ${selectedIdx===-1?'active':''}" onclick="selectTrendMonth(-1)">📊 YTD</button>`;
+  mm.forEach((m, i) => {
+    h += `<button class="mpill ${selectedIdx===i?'active':''}" onclick="selectTrendMonth(${i})">${m.month}</button>`;
+  });
+  document.getElementById('monthSelector').innerHTML = h;
+}
+
+function selectTrendMonth(idx) {
+  renderMonthPills(idx);
+  if (idx === -1) {
+    document.getElementById('trendAllCharts').style.display = '';
+    document.getElementById('trendMonthDetail').style.display = 'none';
+  } else {
+    document.getElementById('trendAllCharts').style.display = 'none';
+    document.getElementById('trendMonthDetail').style.display = '';
+    renderMonthDetail(allMonthMetrics, idx);
+  }
+}
+
+function renderTrendCharts(mm) {
+  const labels = mm.map(m => m.month);
+  const first = mm[0], last = mm[mm.length - 1];
+  const totalJoiners = mm.reduce((s,m)=>s+m.allJoin,0);
+  const totalExits   = mm.reduce((s,m)=>s+(m.allExited||0),0);
+  const totalGrowth  = last.allClose - first.allOpen;
+  const avgAtt       = (mm.reduce((s,m)=>s+m.allAtt,0)/mm.length).toFixed(2);
+
+  document.getElementById('trendStrip').innerHTML = `
+    <span class="strip-label">${first.month} → ${last.month}</span>
+    <div class="strip-items">
+      ${stripItem('Months', mm.length, '#93c5fd')}
+      ${stripItem('Peak HC', Math.max(...mm.map(m=>m.allClose)), '#6ee7b7')}
+      ${stripItem('Latest HC', last.allClose, '#c4b5fd')}
+      ${stripItem('YTD Joiners', totalJoiners, '#86efac')}
+      ${stripItem('YTD Exited', totalExits, '#fca5a5')}
+      ${stripItem('Avg Attrition', avgAtt+'%', '#fcd34d')}
+      ${stripItem('Net Growth', (totalGrowth>0?'+':'')+totalGrowth, totalGrowth<0?'#f87171':'#86efac')}
+    </div>`;
+
+  ['chartHCTrend','chartAttTrend','chartJoinExitTrend','chartTypesTrend'].forEach(id => {
+    if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+  });
+
+  const _chartGrid = 'rgba(255,255,255,.07)', _chartTick = { font:{size:9}, color:'#94a3b8' };
+  const _legendOpts = { position:'bottom', labels:{padding:12,boxWidth:10,font:{size:10},color:'#475569'} };
+
+  chartInstances['chartHCTrend'] = new Chart(document.getElementById('chartHCTrend'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Closing HC', data:mm.map(m=>m.allClose), borderColor:'#1d4ed8', backgroundColor:'rgba(29,78,216,0.07)', fill:true, tension:0.4, pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:'#1d4ed8', pointBorderWidth:2, borderWidth:2.5 },
+    ]},
+    options: { responsive:true, plugins:{
+      legend:_legendOpts,
+      datalabels:{display:ctx=>ctx.datasetIndex===0,color:'#1d4ed8',font:{weight:'800',size:11},anchor:'end',align:'top',offset:3}
+    }, scales:{ x:{grid:{display:false},ticks:_chartTick}, y:{grid:{color:_chartGrid},beginAtZero:false,ticks:_chartTick,grace:'20%'} }}
+  });
+
+  chartInstances['chartAttTrend'] = new Chart(document.getElementById('chartAttTrend'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      label:'Attrition %', data:mm.map(m=>parseFloat(m.allAtt.toFixed(2))),
+      borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,0.07)', fill:true, tension:0.4,
+      pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:'#dc2626', pointBorderWidth:2, borderWidth:2.5
+    }]},
+    options: { responsive:true, plugins:{
+      legend:_legendOpts,
+      datalabels:{display:true,color:'#dc2626',font:{weight:'800',size:11},anchor:'end',align:'top',offset:3,formatter:v=>v+'%'}
+    }, scales:{ x:{grid:{display:false},ticks:_chartTick}, y:{grid:{color:_chartGrid},beginAtZero:true,ticks:{..._chartTick,callback:v=>v+'%'},grace:'20%'} }}
+  });
+
+  chartInstances['chartJoinExitTrend'] = new Chart(document.getElementById('chartJoinExitTrend'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'New Joiners', data:mm.map(m=>m.allJoin),  backgroundColor:'rgba(5,150,105,0.85)', borderRadius:6, borderSkipped:false },
+      { label:'Exited', data:mm.map(m=>m.allExited||0), backgroundColor:'rgba(220,38,38,0.82)',  borderRadius:6, borderSkipped:false }
+    ]},
+    options: { responsive:true, plugins:{
+      legend:_legendOpts,
+      datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{weight:'800',size:10},anchor:'end',align:'top',offset:2}
+    }, scales:{ x:{grid:{display:false},ticks:_chartTick}, y:{grid:{color:_chartGrid},beginAtZero:true,ticks:_chartTick,grace:'20%'} }}
+  });
+
+  chartInstances['chartTypesTrend'] = new Chart(document.getElementById('chartTypesTrend'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label:'On-roll',  data:mm.map(m=>m.or.close), backgroundColor:'rgba(124,58,237,0.88)', borderRadius:[4,4,0,0], borderSkipped:false },
+      { label:'Off-roll', data:mm.map(m=>m.sr.close), backgroundColor:'rgba(8,145,178,0.82)',  borderRadius:[4,4,0,0], borderSkipped:false }
+    ]},
+    options: { responsive:true, plugins:{
+      legend:_legendOpts,
+      datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{weight:'800',size:10},anchor:'center',align:'center'}
+    }, scales:{ x:{stacked:true,grid:{display:false},ticks:_chartTick}, y:{stacked:true,grid:{color:_chartGrid},beginAtZero:true,ticks:_chartTick} }}
+  });
+
+  // Month-wise summary table
+  const tbody = document.getElementById('trendTableBody');
+  let html = '';
+  mm.forEach((m, i) => {
+    const prev = i > 0 ? mm[i-1] : null;
+    const momChange = prev ? m.allClose - prev.allClose : 0;
+    const arrow = momChange > 0 ? '↑' : momChange < 0 ? '↓' : '→';
+    const cls   = momChange > 0 ? 'chg-pos' : momChange < 0 ? 'chg-neg' : 'chg-zero';
+    const attPill = m.allAtt===0?'pill-zero':m.allAtt>=10?'pill-red':m.allAtt>=5?'pill-amber':'pill-green';
+    const monthBtn = `<button onclick="selectTrendMonth(${i})" style="background:none;border:none;color:#1d4ed8;font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-size:.73rem;">${m.month}</button>`;
+    html += `<tr>
+      <td>${monthBtn}</td>
+      <td class="r">${m.allOpen}</td>
+      <td class="r" style="font-weight:700;">${m.allClose}</td>
+      <td class="r">${m.or.close}</td>
+      <td class="r">${m.sr.close}</td>
+      <td class="r">${m.allJoin||'—'}</td>
+      <td class="r">${m.allExited||'—'}</td>
+      <td class="r"><span class="pill ${attPill}">${m.allAtt>0?m.allAtt.toFixed(2)+'%':'—'}</span></td>
+      <td class="r ${cls}">${i>0?(Math.abs(momChange)||'—')+' '+arrow:'—'}</td>
+    </tr>`;
+  });
+  const grandNet = last.allClose - first.allOpen;
+  html += `<tr class="total-row">
+    <td>Grand Total</td><td class="r">${first.allOpen}</td><td class="r">${last.allClose}</td>
+    <td class="r">${last.or.close}</td><td class="r">${last.sr.close}</td>
+    <td class="r">${totalJoiners||'—'}</td><td class="r">${totalExits||'—'}</td>
+
+    <td class="r">${avgAtt}%</td>
+    <td class="r" style="color:${grandNet<0?'#f87171':'#86efac'}">${Math.abs(grandNet)||'—'} ${grandNet>0?'↑':grandNet<0?'↓':'→'}</td>
+  </tr>`;
+  tbody.innerHTML = html;
+
+  // Insights
+  const maxHC   = mm.reduce((b,m)=>m.allClose>b.allClose?m:b);
+  const maxAtt  = mm.reduce((b,m)=>m.allAtt>b.allAtt?m:b);
+  const maxJoin = mm.reduce((b,m)=>m.allJoin>b.allJoin?m:b);
+  let streak = 0, maxStreak = 0;
+  for (let i=1;i<mm.length;i++) { if(mm[i].allClose>mm[i-1].allClose){streak++;maxStreak=Math.max(maxStreak,streak);}else streak=0; }
+  const overallTrend = totalGrowth>0?'📈 Growing':totalGrowth<0?'📉 Declining':'↔ Stable';
+  const cards = [
+    { icon:'👥', title:'Overall Trend',     value:overallTrend,  desc:`${first.month}: ${first.allOpen} → ${last.month}: ${last.allClose} | Net ${totalGrowth>=0?'+':''}${totalGrowth}`, color:totalGrowth>=0?'#16a34a':'#dc2626' },
+    { icon:'🏆', title:'Peak HC',           value:maxHC.allClose, desc:`Recorded in ${maxHC.month}`, color:'#0e4d8b' },
+    { icon:'📉', title:'Highest Attrition', value:`${maxAtt.allAtt.toFixed(2)}%`, desc:`In ${maxAtt.month} — ${Math.max(0, maxAtt.allExits - (maxAtt.allOnNotice||0))} exits`, color:'#dc2626' },
+    { icon:'🎉', title:'Best Hiring Month', value:maxJoin.allJoin||'—', desc:`${maxJoin.month} — ${maxJoin.allJoin} joiners`, color:'#16a34a' },
+    { icon:'⚡', title:'Avg Attrition',     value:`${avgAtt}%`,  desc:`Across ${mm.length} months`, color:parseFloat(avgAtt)>10?'#dc2626':parseFloat(avgAtt)>5?'#d97706':'#16a34a' },
+    { icon:'📊', title:'Growth Streak',     value:maxStreak>0?`${maxStreak} month${maxStreak>1?'s':''}` : 'None', desc:'Consecutive months of HC growth', color:'#7c3aed' },
+  ];
+  document.getElementById('trendInsights').innerHTML = cards.map(c=>`
+    <div class="insight-card" style="border-left-color:${c.color}">
+      <div class="insight-icon">${c.icon}</div>
+      <div class="insight-title">${c.title}</div>
+      <div class="insight-value" style="color:${c.color}">${c.value}</div>
+      <div class="insight-desc">${c.desc}</div>
+    </div>`).join('');
+}
+
+/* ════════ SINGLE MONTH DETAIL (BI STYLE) ════════ */
+function renderMonthDetail(mm, idx) {
+  const m = mm[idx];
+  const prev = idx > 0 ? mm[idx-1] : null;
+
+  document.getElementById('monthDetailHeader').textContent = `${m.month} — Month Detail`;
+  document.getElementById('monthDetailSub').textContent = prev
+    ? `Comparing vs ${prev.month}` : 'First month in dataset — no previous period';
+
+  // BI KPI cards with delta
+  function biCard(icon, label, value, prevRaw, currRaw, color, badUp) {
+    const delta = (prevRaw !== null && prevRaw !== undefined) ? currRaw - prevRaw : null;
+    let deltaHtml = '';
+    if (delta !== null) {
+      const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+      const fmt   = typeof currRaw === 'number' && currRaw % 1 !== 0
+        ? Math.abs(delta).toFixed(2) : Math.abs(Math.round(delta));
+      const cls   = delta === 0 ? 'd-eq' : (badUp ? (delta > 0 ? 'd-down' : 'd-up') : (delta > 0 ? 'd-up' : 'd-down'));
+      deltaHtml = `<div><span class="kpi-bi-delta ${cls}">${arrow} ${fmt} vs ${prev.month}</span></div>`;
+    }
+    return `<div class="kpi-bi" style="border-top-color:${color}">
+      <div class="kpi-bi-icon">${icon}</div>
+      <div class="kpi-bi-label">${label}</div>
+      <div class="kpi-bi-value" style="color:${color}">${value}</div>
+      ${deltaHtml}
+    </div>`;
+  }
+
+  const attColor = m.allAtt>=10?'#dc2626':m.allAtt>=5?'#d97706':'#16a34a';
+  document.getElementById('monthDetailKPIs').innerHTML = `<div class="kpi-bi-grid">
+    ${biCard('✅','Total HC',      m.allClose,                   prev?.allClose,           m.allClose,           '#1d4ed8', false)}
+    ${biCard('🟣','On-roll HC',     m.or.close,                   prev?.or.close,           m.or.close,           '#7c3aed', false)}
+    ${biCard('🔵','Off-roll HC',    m.sr.close,                   prev?.sr.close,           m.sr.close,           '#0369a1', false)}
+    ${biCard('🎉','New Joiners',   m.allJoin||0,                 prev?.allJoin,            m.allJoin||0,         '#16a34a', false)}
+    ${biCard('🚪','Exited',        m.allExited||0,               prev?.allExited,          m.allExited||0,       '#ef4444', true)}
+    ${biCard('📉','Attrition',     m.allAtt.toFixed(2)+'%',      prev?.allAtt,             m.allAtt,             attColor,  true)}
+  </div>`;
+
+  // Department register
+  if (m.rows) renderRegisterTable(m.rows, 'monthDetailRegisterBody');
+
+  // Charts
+  ['chartMonthTeam','chartMonthVsPrev'].forEach(id => {
+    if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+  });
+
+  if (m.rows) {
+    const teamData = groupBy(m.rows, 'team');
+    chartInstances['chartMonthTeam'] = new Chart(document.getElementById('chartMonthTeam'), {
+      type: 'bar',
+      data: { labels: teamData.map(d=>d.label), datasets: [
+        { label:'Opening HC', data:teamData.map(d=>d.opening), backgroundColor:'#bfdbfe', borderRadius:4 },
+        { label:'Closing HC', data:teamData.map(d=>d.closing), backgroundColor:'#1d4ed8', borderRadius:4 },
+      ]},
+      options: { responsive:true, plugins:{
+        legend:{position:'bottom',labels:{padding:10,boxWidth:10,font:{size:10}}},
+        datalabels:{display:ctx=>ctx.datasetIndex===1&&ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{weight:'700',size:10},anchor:'end',align:'top',offset:2}
+      }, scales:{ x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}, y:{grid:{color:'#f1f5f9'},beginAtZero:true,ticks:{font:{size:9}},grace:'20%'} }}
+    });
+
+    // vs Previous month comparison chart
+    if (prev && prev.rows) {
+      document.getElementById('chartMonthCmpTitle').textContent = `${m.month} vs ${prev.month}`;
+      const thisTeams = groupBy(m.rows, 'team');
+      const prevMap   = {};
+      groupBy(prev.rows, 'team').forEach(d => prevMap[d.label] = d.closing);
+      const lbls = thisTeams.map(d => d.label);
+      chartInstances['chartMonthVsPrev'] = new Chart(document.getElementById('chartMonthVsPrev'), {
+        type: 'bar',
+        data: { labels: lbls, datasets: [
+          { label: prev.month, data: lbls.map(l=>prevMap[l]||0), backgroundColor:'#cbd5e1', borderRadius:4 },
+          { label: m.month,    data: thisTeams.map(d=>d.closing), backgroundColor:'#7c3aed', borderRadius:4 },
+        ]},
+        options: { responsive:true, plugins:{
+          legend:{position:'bottom',labels:{padding:10,boxWidth:10,font:{size:10}}},
+          datalabels:{display:ctx=>ctx.datasetIndex===1&&ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{weight:'700',size:10},anchor:'end',align:'top',offset:2}
+        }, scales:{ x:{grid:{display:false},ticks:{font:{size:9},maxRotation:35}}, y:{grid:{color:'#f1f5f9'},beginAtZero:true,ticks:{font:{size:9}},grace:'20%'} }}
+      });
+    } else {
+      document.getElementById('chartMonthCmpTitle').textContent = 'HC by Type';
+      const typeData = groupBy(m.rows, 'type');
+      chartInstances['chartMonthVsPrev'] = new Chart(document.getElementById('chartMonthVsPrev'), {
+        type: 'bar',
+        data: { labels: typeData.map(d=>d.label), datasets: [
+          { label:'Opening', data:typeData.map(d=>d.opening), backgroundColor:'#c4b5fd', borderRadius:4 },
+          { label:'Closing', data:typeData.map(d=>d.closing), backgroundColor:'#7c3aed', borderRadius:4 },
+        ]},
+        options: { responsive:true, plugins:{
+          legend:{position:'bottom',labels:{padding:10,boxWidth:10,font:{size:10}}},
+          datalabels:{display:ctx=>ctx.datasetIndex===1&&ctx.dataset.data[ctx.dataIndex]>0,color:'#fff',font:{weight:'700',size:10},anchor:'end',align:'top',offset:2}
+        }, scales:{ x:{grid:{display:false},ticks:{font:{size:9}}}, y:{grid:{color:'#f1f5f9'},beginAtZero:true,ticks:{font:{size:9}},grace:'20%'} }}
+      });
+    }
+  }
+}
+
+/* ════════ EXEC SUMMARY ════════ */
+function renderExecSummary(rows, or, sr, allOpen, allClose, allJoin, allExits, allVol, allCo, allAtt, allAvg, title, periodLabel) {
+  const el = document.getElementById('execSummaryContent'); if (!el) return;
+  const allOnNotice = rows.reduce((s, r) => s + (r.onNotice||0), 0);
+  const allExited = Math.max(0, allExits - allOnNotice);
+  const hcChange = allClose - allOpen;
+  const net = allJoin - allExited;
+  const netColor = net >= 0 ? '#10b981' : '#f87171';
+  const attColor = allAtt < 5 ? '#10b981' : allAtt < 10 ? '#fbbf24' : '#f87171';
+  const attLabel = allAtt < 5 ? 'Healthy' : allAtt < 10 ? 'Moderate' : 'High';
+  const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+
+  // Top departments by closing HC
+  const deptMap = {};
+  rows.forEach(r => { deptMap[r.team] = (deptMap[r.team]||0) + (r.closing||0); });
+  const topDepts = Object.entries(deptMap).sort((a,b)=>b[1]-a[1]);
+  const maxDept = topDepts[0]?.[1] || 1;
+
+  // At-risk departments (attrition > 10%)
+  const deptAtt = {};
+  rows.forEach(r => {
+    if (!deptAtt[r.team]) deptAtt[r.team] = { exits:0, opening:0, closing:0, onNotice:0 };
+    deptAtt[r.team].exits   += Math.max(0, (r.exits||0) - (r.onNotice||0));
+    deptAtt[r.team].opening += r.opening || 0;
+    deptAtt[r.team].closing += r.closing || 0;
+    deptAtt[r.team].onNotice += r.onNotice || 0;
+  });
+  const riskDepts = Object.entries(deptAtt)
+    .map(([team, d]) => {
+      const attAvg = (d.opening + d.closing + d.onNotice) / 2;
+      return { team, att: attAvg > 0 ? Math.min(100, d.exits / attAvg * 100) : 0 };
+    })
+    .filter(d => d.att > 10)
+    .sort((a,b) => b.att - a.att)
+    .slice(0, 5);
+
+  // Auto insights
+  const insights = [];
+  if (hcChange > 0)  insights.push({ color:'#10b981', text:`Headcount grew by <strong>${hcChange}</strong> during the period (+${((hcChange/Math.max(allOpen,1))*100).toFixed(1)}%)` });
+  else if (hcChange < 0) insights.push({ color:'#f87171', text:`Headcount declined by <strong>${Math.abs(hcChange)}</strong> during the period (${((hcChange/Math.max(allOpen,1))*100).toFixed(1)}%)` });
+  else insights.push({ color:'#94a3b8', text:`Headcount remained stable at <strong>${allClose}</strong>` });
+
+  if (allAtt < 5)  insights.push({ color:'#10b981', text:`Attrition at <strong>${allAtt.toFixed(2)}%</strong> — well within acceptable range (&lt;5%)` });
+  else if (allAtt < 10) insights.push({ color:'#fbbf24', text:`Attrition at <strong>${allAtt.toFixed(2)}%</strong> — moderate, monitoring recommended` });
+  else insights.push({ color:'#f87171', text:`Attrition at <strong>${allAtt.toFixed(2)}%</strong> — elevated, immediate attention required` });
+
+  if (allJoin > allExited) insights.push({ color:'#3b82f6', text:`Net positive hiring: <strong>${allJoin}</strong> joined vs <strong>${allExited}</strong> exited` });
+  else if (allExited > allJoin) insights.push({ color:'#f87171', text:`Exits outpace hiring: <strong>${allExited}</strong> exited vs <strong>${allJoin}</strong> joined` });
+
+  const orPct = allClose > 0 ? Math.round(or.close/allClose*100) : 0;
+  insights.push({ color:'#a78bfa', text:`On-roll workforce is <strong>${orPct}%</strong> of total headcount (${or.close} of ${allClose})` });
+
+  if (riskDepts.length > 0) insights.push({ color:'#f87171', text:`<strong>${riskDepts.length}</strong> department${riskDepts.length>1?'s':''} with attrition above 10%: ${riskDepts.map(d=>`<em>${d.team}</em>`).join(', ')}` });
+
+  el.innerHTML = `
+  <div class="es-wrap">
+    <div class="es-header">
+      <div>
+        <div class="es-logo"><strong>WIOM</strong> · HR Intelligence</div>
+        <div class="es-title">${title}</div>
+        <div class="es-period">Period: ${periodLabel}</div>
+      </div>
+      <div class="es-meta">
+        <div>Prepared by: HR Analytics</div>
+        <div>Date: ${today}</div>
+        <div>Classification: Internal</div>
+        <button class="es-print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+      </div>
+    </div>
+
+    <div class="es-divider"></div>
+
+    <div class="es-section-label">Key Metrics at a Glance</div>
+    <div class="es-kpi-row">
+      <div class="es-kpi" style="border-top-color:#3b82f6">
+        <div class="es-kpi-label">Total Headcount</div>
+        <div class="es-kpi-val" style="color:#3b82f6">${allClose.toLocaleString()}</div>
+        <div class="es-kpi-sub">Closing HC</div>
+      </div>
+      <div class="es-kpi" style="border-top-color:${attColor}">
+        <div class="es-kpi-label">Attrition Rate</div>
+        <div class="es-kpi-val" style="color:${attColor}">${allAtt.toFixed(2)}%</div>
+        <div class="es-kpi-sub">${attLabel} · Avg HC ${Math.round(allAvg)}</div>
+      </div>
+      <div class="es-kpi" style="border-top-color:#10b981">
+        <div class="es-kpi-label">New Joiners</div>
+        <div class="es-kpi-val" style="color:#10b981">${allJoin}</div>
+        <div class="es-kpi-sub">Added this period</div>
+      </div>
+      <div class="es-kpi" style="border-top-color:#f87171">
+        <div class="es-kpi-label">Exited</div>
+        <div class="es-kpi-val" style="color:#f87171">${allExited}</div>
+        <div class="es-kpi-sub">Excl. On-Notice (${allOnNotice})</div>
+      </div>
+      <div class="es-kpi" style="border-top-color:${netColor}">
+        <div class="es-kpi-label">Net Change</div>
+        <div class="es-kpi-val" style="color:${netColor}">${net >= 0 ? '+' : ''}${net}</div>
+        <div class="es-kpi-sub">${allOpen} → ${allClose}</div>
+      </div>
+    </div>
+
+    <div class="es-grid-2">
+      <div class="es-card">
+        <div class="es-card-title">Workforce Composition</div>
+        <div class="es-dept-row">
+          <div class="es-dept-name">On-roll</div>
+          <div class="es-dept-bar-wrap"><div class="es-dept-bar" style="width:${allClose>0?Math.round(or.close/allClose*100):0}%;background:#7c3aed"></div></div>
+          <div class="es-dept-val" style="color:#a78bfa">${or.close}</div>
+        </div>
+        <div class="es-dept-row">
+          <div class="es-dept-name">Off-roll / Support</div>
+          <div class="es-dept-bar-wrap"><div class="es-dept-bar" style="width:${allClose>0?Math.round(sr.close/allClose*100):0}%;background:#0ea5e9"></div></div>
+          <div class="es-dept-val" style="color:#7dd3fc">${sr.close}</div>
+        </div>
+        <div class="es-divider" style="margin:12px 0 10px"></div>
+        <div class="es-card-title">Attrition Breakdown</div>
+        <div class="es-dept-row">
+          <div class="es-dept-name">On-roll</div>
+          <div class="es-dept-bar-wrap"><div class="es-dept-bar" style="width:${Math.min(or.att/20*100,100)}%;background:${or.att<5?'#10b981':or.att<10?'#fbbf24':'#f87171'}"></div></div>
+          <div class="es-dept-val" style="color:${or.att<5?'#10b981':or.att<10?'#fbbf24':'#f87171'}">${or.att.toFixed(1)}%</div>
+        </div>
+        <div class="es-dept-row">
+          <div class="es-dept-name">Off-roll</div>
+          <div class="es-dept-bar-wrap"><div class="es-dept-bar" style="width:${Math.min(sr.att/20*100,100)}%;background:${sr.att<5?'#10b981':sr.att<10?'#fbbf24':'#f87171'}"></div></div>
+          <div class="es-dept-val" style="color:${sr.att<5?'#10b981':sr.att<10?'#fbbf24':'#f87171'}">${sr.att.toFixed(1)}%</div>
+        </div>
+      </div>
+
+      <div class="es-card">
+        <div class="es-card-title">Key Highlights</div>
+        <div class="es-highlight-row">
+          ${insights.map(i => `<div class="es-hl"><div class="es-hl-dot" style="background:${i.color}"></div><span>${i.text}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="es-grid-2">
+      <div class="es-card">
+        <div class="es-card-title">Department Headcount &amp; Proportion</div>
+        ${topDepts.map(([dept, hc]) => `
+          <div class="es-dept-row">
+            <div class="es-dept-name" style="min-width:120px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${dept}">${dept}</div>
+            <div class="es-dept-bar-wrap"><div class="es-dept-bar" style="width:${Math.round(hc/maxDept*100)}%"></div></div>
+            <div class="es-dept-val" style="min-width:80px;text-align:right">${hc} <span style="color:var(--muted);font-size:.72rem">(${allClose>0?Math.round(hc/allClose*100):0}%)</span></div>
+          </div>`).join('')}
+      </div>
+
+      <div class="es-card">
+        <div class="es-card-title">Attrition Risk — Departments &gt;10%</div>
+        ${riskDepts.length === 0
+          ? `<div class="es-hl"><div class="es-hl-dot" style="background:#10b981"></div><span>No departments with attrition above 10% — all clear.</span></div>`
+          : riskDepts.map(d => `
+          <div class="es-risk-row">
+            <div class="es-dept-name">${d.team}</div>
+            <span class="es-risk-badge" style="background:${d.att>20?'rgba(248,113,113,.2)':'rgba(251,191,36,.15)'};color:${d.att>20?'#f87171':'#fbbf24'}">${d.att>20?'CRITICAL':'WATCH'}</span>
+            <div class="es-dept-val" style="color:${d.att>20?'#f87171':'#fbbf24'}">${d.att.toFixed(1)}%</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="es-footer">
+      <div class="es-footer-note">Confidential — For Internal Management Use Only · Generated by Wiom HR Intelligence</div>
+      <button class="es-print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+  </div>`;
+}
+
+/* ════════ OPEN POSITIONS ════════ */
+function renderOpenPositions(rows) {
+  const el = document.getElementById('openposContent'); if (!el) return;
+
+  const deptMap = {};
+  rows.forEach(r => {
+    const key = r.team || 'Unknown';
+    if (!deptMap[key]) deptMap[key] = { team: key, opening: 0, closing: 0, joiners: 0, exits: 0 };
+    deptMap[key].opening += r.opening || 0;
+    deptMap[key].closing += r.closing || 0;
+    deptMap[key].joiners += r.joiners || 0;
+    deptMap[key].exits   += Math.max(0, (r.exits||0) - (r.onNotice||0));
+  });
+
+  const saved = JSON.parse(localStorage.getItem('wiom_openPositions') || '{}');
+
+  const depts = Object.values(deptMap);
+  depts.forEach(d => {
+    d.openPos = saved[d.team] !== undefined ? saved[d.team] : Math.max(0, d.opening - d.closing);
+  });
+  depts.sort((a, b) => b.openPos - a.openPos);
+
+  const totalOpening = depts.reduce((s,d)=>s+d.opening,0);
+  const totalClosing = depts.reduce((s,d)=>s+d.closing,0);
+  const totalJoiners = depts.reduce((s,d)=>s+d.joiners,0);
+  const totalExits   = depts.reduce((s,d)=>s+d.exits,0);
+  const initTotal    = depts.reduce((s,d)=>s+d.openPos,0);
+  const initVacant   = depts.filter(d=>d.openPos>0).length;
+
+  el.innerHTML = `
+  <div class="section-heading" style="margin-top:4px">Open Positions — Editable Register</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="kpi" style="min-width:140px;flex:1"><div class="kpi-icon" style="background:rgba(245,158,11,.15);color:#f59e0b">📋</div><div class="kpi-val" id="kpiOpTotal" style="color:#f59e0b">${initTotal}</div><div class="kpi-label">Total Open Positions</div><div class="kpi-sub">Across all departments</div></div>
+    <div class="kpi" style="min-width:140px;flex:1"><div class="kpi-icon" style="background:rgba(239,68,68,.15);color:#f87171">🔴</div><div class="kpi-val" id="kpiOpVacant" style="color:#f87171">${initVacant}</div><div class="kpi-label">Depts with Openings</div><div class="kpi-sub">Require active hiring</div></div>
+    <div class="kpi" style="min-width:140px;flex:1"><div class="kpi-icon" style="background:rgba(16,185,129,.15);color:#10b981">✅</div><div class="kpi-val" id="kpiOpFilled" style="color:#10b981">${depts.length - initVacant}</div><div class="kpi-label">Fully Staffed Depts</div><div class="kpi-sub">No open positions</div></div>
+    <div class="kpi" style="min-width:140px;flex:1"><div class="kpi-icon" style="background:rgba(59,130,246,.15);color:#3b82f6">👥</div><div class="kpi-val" style="color:#3b82f6">${totalClosing}</div><div class="kpi-label">Current HC</div><div class="kpi-sub">Closing headcount</div></div>
+  </div>
+
+  <div class="card" style="overflow-x:auto;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">Department Register <span style="color:var(--muted);font-size:.7rem;font-weight:400;margin-left:6px">— Edit open positions below, then Save</span></div>
+      <button id="opSaveBtn" onclick="saveOpenPositions()" style="background:rgba(59,130,246,.18);border:1px solid rgba(59,130,246,.4);color:#93c5fd;padding:5px 16px;border-radius:8px;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s">💾 Save</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:600px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:8px;color:var(--muted);font-weight:600">Department</th>
+          <th style="text-align:right;padding:8px;color:var(--muted);font-weight:600">Opening HC</th>
+          <th style="text-align:right;padding:8px;color:var(--muted);font-weight:600">Joiners</th>
+          <th style="text-align:right;padding:8px;color:var(--muted);font-weight:600">Exits</th>
+          <th style="text-align:right;padding:8px;color:var(--muted);font-weight:600">Closing HC</th>
+          <th style="text-align:center;padding:8px;color:#f59e0b;font-weight:700">✏️ Open Positions</th>
+          <th style="text-align:center;padding:8px;color:var(--muted);font-weight:600">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${depts.map((d, i) => {
+          const st = d.openPos > 0
+            ? { label:'OPEN',   bg:'rgba(239,68,68,.15)',   color:'#f87171' }
+            : { label:'FILLED', bg:'rgba(16,185,129,.15)',  color:'#10b981' };
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+            <td style="padding:7px 8px;font-weight:600">${d.team}</td>
+            <td style="text-align:right;padding:7px 8px">${d.opening}</td>
+            <td style="text-align:right;padding:7px 8px;color:#86efac">${d.joiners||'—'}</td>
+            <td style="text-align:right;padding:7px 8px;color:#fca5a5">${d.exits||'—'}</td>
+            <td style="text-align:right;padding:7px 8px;font-weight:700">${d.closing}</td>
+            <td style="text-align:center;padding:5px 8px">
+              <input type="number" min="0" value="${d.openPos}"
+                id="op-inp-${i}" data-team="${d.team}" data-idx="${i}"
+                oninput="updateOpKpis()"
+                style="width:84px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:7px;padding:4px 8px;color:#f59e0b;font-weight:700;text-align:center;font-size:.85rem;outline:none;cursor:text">
+            </td>
+            <td style="text-align:center;padding:7px 8px">
+              <span id="op-st-${i}" style="background:${st.bg};color:${st.color};padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.4px">${st.label}</span>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="border-top:2px solid var(--border);background:rgba(255,255,255,.04)">
+          <td style="padding:8px;font-weight:700">Grand Total</td>
+          <td style="text-align:right;padding:8px;font-weight:700">${totalOpening}</td>
+          <td style="text-align:right;padding:8px;color:#86efac;font-weight:700">${totalJoiners||'—'}</td>
+          <td style="text-align:right;padding:8px;color:#fca5a5;font-weight:700">${totalExits||'—'}</td>
+          <td style="text-align:right;padding:8px;font-weight:700">${totalClosing}</td>
+          <td style="text-align:center;padding:8px;color:#f59e0b;font-weight:700" id="op-foot-total">${initTotal||'—'}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div style="font-size:.68rem;color:var(--muted);margin-top:10px">
+      💡 Values auto-filled from HC gap (Opening − Closing). Edit any field directly and click <strong style="color:#93c5fd">Save</strong> — data persists across sessions.
+    </div>
+  </div>`;
+}
+
+function updateOpKpis() {
+  const inputs = document.querySelectorAll('[id^="op-inp-"]');
+  let total = 0, vacant = 0;
+  inputs.forEach(inp => {
+    const v = Math.max(0, parseInt(inp.value) || 0);
+    total += v;
+    if (v > 0) vacant++;
+    const st = document.getElementById('op-st-' + inp.dataset.idx);
+    if (st) {
+      if (v > 0) { st.style.background='rgba(239,68,68,.15)'; st.style.color='#f87171'; st.textContent='OPEN'; }
+      else        { st.style.background='rgba(16,185,129,.15)'; st.style.color='#10b981'; st.textContent='FILLED'; }
+    }
+  });
+  const t = document.getElementById('kpiOpTotal');     if (t) t.textContent = total;
+  const v = document.getElementById('kpiOpVacant');    if (v) v.textContent = vacant;
+  const f = document.getElementById('kpiOpFilled');    if (f) f.textContent = inputs.length - vacant;
+  const ft = document.getElementById('op-foot-total'); if (ft) ft.textContent = total || '—';
+}
+
+function saveOpenPositions() {
+  const inputs = document.querySelectorAll('[id^="op-inp-"]');
+  const data = {};
+  inputs.forEach(inp => { data[inp.dataset.team] = Math.max(0, parseInt(inp.value) || 0); });
+  localStorage.setItem('wiom_openPositions', JSON.stringify(data));
+  const btn = document.getElementById('opSaveBtn');
+  if (btn) {
+    btn.textContent = '✅ Saved!';
+    btn.style.background = 'rgba(16,185,129,.2)';
+    btn.style.borderColor = 'rgba(16,185,129,.4)';
+    btn.style.color = '#6ee7b7';
+    setTimeout(() => {
+      btn.textContent = '💾 Save';
+      btn.style.background = 'rgba(59,130,246,.18)';
+      btn.style.borderColor = 'rgba(59,130,246,.4)';
+      btn.style.color = '#93c5fd';
+    }, 2000);
+  }
+}
+
+/* ════════ TABLE ════════ */
+function renderTable(rows, totalOpen, totalJoin, totalExits, totalVol, totalCo, totalClose, totalAvg, totalAtt, tbodyId) {
+  const tbody = document.getElementById(tbodyId); if (!tbody) return;
+  const typeClass = { Consultant:'b-consultant', Intern:'b-intern', Onroll:'b-onroll', Offroll:'b-offroll' };
+  let html = '';
+  rows.forEach(r => {
+    const exited = Math.max(0, (r.exits||0) - (r.onNotice||0));
+    const chg = (r.joiners||0) - exited;
+    const attAvg = (r.opening + r.closing + (r.onNotice||0)) / 2;
+    const att = attAvg > 0 ? Math.min(100, exited / attAvg * 100) : 0;
+    const attPill  = att===0?'pill-zero':att>=30?'pill-red':att>=10?'pill-amber':'pill-green';
+    const chgClass = chg>0?'chg-pos':chg<0?'chg-neg':'chg-zero';
+    html += `<tr>
+      <td><span class="badge ${typeClass[r.type]||'b-offroll'}">${{Onroll:'On-roll',Offroll:'Off-roll'}[r.type]||r.type}</span></td>
+      <td><span class="tag-loc">${r.loc}</span></td>
+      <td>${r.team}</td>
+      <td class="r" style="font-weight:600;">${r.opening}</td>
+      <td class="r">${r.joiners||'—'}</td>
+      <td class="r">${exited||'—'}</td>
+      <td class="r" style="font-weight:600;">${r.closing}</td>
+      <td class="r">${r.avg%1===0?r.avg:r.avg.toFixed(1)}</td>
+      <td class="r"><span class="pill ${attPill}">${att>0?att.toFixed(2)+'%':'—'}</span></td>
+      <td class="r ${chgClass}">${chg>0?'+'+chg:chg}</td>
+    </tr>`;
+  });
+  const totalExited = rows.reduce((s,r)=>s+Math.max(0,(r.exits||0)-(r.onNotice||0)),0);
+  const netChange = totalJoin - totalExited;
+  const totalAttPill = totalAtt===0?'pill-zero':totalAtt>=30?'pill-red':totalAtt>=10?'pill-amber':'pill-green';
+  html += `<tr class="total-row">
+    <td colspan="3">Grand Total</td>
+    <td class="r">${totalOpen}</td>
+    <td class="r">${totalJoin||'—'}</td>
+    <td class="r">${totalExited||'—'}</td>
+    <td class="r">${totalClose}</td>
+    <td class="r">${totalAvg%1===0?totalAvg:totalAvg.toFixed(1)}</td>
+    <td class="r"><span class="pill ${totalAttPill}">${totalAtt.toFixed(2)}%</span></td>
+    <td class="r" style="color:${netChange<0?'#ef4444':'#86efac'}">${netChange>0?'+'+netChange:netChange}</td>
+  </tr>`;
+  tbody.innerHTML = html;
+}
+</script>
+
+<!-- ADD MONTH MODAL -->
+<div id="addMonthModal">
+  <div class="addm-box">
+    <div class="addm-title">➕ Add Month</div>
+    <div class="addm-sub">Upload an Excel file for a new month with its date range</div>
+    <div class="addm-drop" id="addmDrop">
+      <input type="file" id="addmFileInput" accept=".xlsx,.xls" onchange="handleAddMonthFileDrop(this.files[0])">
+      <div class="addm-drop-icon">📂</div>
+      <div class="addm-drop-text">Drop Excel here or <span>click to browse</span></div>
+      <div class="addm-file-sel" id="addmFileSel"></div>
+    </div>
+    <div class="addm-name-row">
+      <label>Month Label (auto-filled from start date)</label>
+      <input type="text" id="addmLabel" placeholder="e.g. Jun-25">
+    </div>
+    <div class="addm-date-row">
+      <div class="addm-field">
+        <label>Period Start</label>
+        <input type="date" id="addmStart" oninput="onAddmDateChange()">
+      </div>
+      <div class="addm-field">
+        <label>Period End</label>
+        <input type="date" id="addmEnd" oninput="onAddmDateChange()">
+      </div>
+    </div>
+    <div class="addm-footer">
+      <button class="btn-addm-cancel" onclick="closeAddMonthModal()">Cancel</button>
+      <button class="btn-addm-submit" id="btnAddmSubmit" onclick="submitAddMonth()" disabled>Add Month</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

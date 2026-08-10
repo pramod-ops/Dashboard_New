@@ -1458,13 +1458,23 @@ initSnap(${active});
     const instance = Chart.getChart(cv);
     if (instance) chartConfigs[cv.id] = { type: instance.config.type, data: JSON.parse(JSON.stringify(instance.config.data)), options: JSON.parse(JSON.stringify(instance.config.options)) };
   });
-  // Pre-compute label strings for round charts — formatter functions don't survive JSON.stringify
+  // Pre-compute label strings — formatter functions don't survive JSON.stringify
   Object.values(chartConfigs).forEach(cfg => {
     if (cfg.type === 'doughnut' || cfg.type === 'pie') {
       const d = (cfg.data.datasets[0]||{}).data||[], t = d.reduce((a,b)=>a+b,0);
       cfg._dlabels = d.map(v => (t && v > 0 && v !== 1) ? v+'\n('+Math.round(v/t*100)+'%)' : '');
     }
   });
+  // Pre-compute dept proportion chart labels
+  const _dpc = chartConfigs['chartDeptProp'];
+  if (_dpc && _dpc.data && _dpc.data.datasets && _dpc.data.datasets.length >= 2) {
+    const _d0 = _dpc.data.datasets[0].data||[], _d1 = _dpc.data.datasets[1].data||[];
+    const _gt = _d0.reduce((s,v)=>s+v,0) + _d1.reduce((s,v)=>s+v,0);
+    const _sl = v => { if (!v||v<=0) return null; const p=_gt>0?(v/_gt*100):0; return p>=2?`${v} (${p.toFixed(1)}%)`:null; };
+    _dpc._deptOnroll  = _d0.map(_sl);
+    _dpc._deptOffroll = _d1.map(_sl);
+    _dpc._deptTotal   = _d0.map((v,i)=>{ const t=v+(_d1[i]||0); if(!t)return null; const p=_gt>0?(t/_gt*100).toFixed(1):'0.0'; return `${t} (${p}%)`; });
+  }
   dash.querySelectorAll('canvas').forEach(c => { c.removeAttribute('width'); c.removeAttribute('height'); c.style.cssText = ''; });
   dash.querySelectorAll('.btn-save-html,.btn-new-upload,.btn-share-link,#globalMonthBar').forEach(b => b.remove());
   const title = document.getElementById('hTitle')?.textContent || 'Headcount Dashboard';
@@ -1478,6 +1488,7 @@ function switchTab(name){document.querySelectorAll('.tab-btn').forEach(b=>b.clas
 function selectTrendMonth(){}function openAddMonthModal(){}
 const _cfgs=${JSON.stringify(chartConfigs)};
 Object.values(_cfgs).forEach(function(cfg){if(cfg._dlabels){var s=cfg._dlabels;if(cfg.options&&cfg.options.plugins&&cfg.options.plugins.datalabels)cfg.options.plugins.datalabels.formatter=function(v,ctx){return s[ctx.dataIndex]||'';};}});
+(function(){var dc=_cfgs.chartDeptProp;if(!dc)return;var ol=dc._deptOnroll||[],fl=dc._deptOffroll||[],tl=dc._deptTotal||[];var ds=dc.data&&dc.data.datasets;if(!ds)return;if(ds[0]&&ds[0].datalabels)ds[0].datalabels.formatter=function(v,ctx){return ol[ctx.dataIndex]||null;};if(ds[1]&&ds[1].datalabels){var lb=ds[1].datalabels.labels;if(lb){if(lb.segment)lb.segment.formatter=function(v,ctx){return fl[ctx.dataIndex]||null;};if(lb.total)lb.total.formatter=function(v,ctx){return tl[ctx.dataIndex]||null;};}else{ds[1].datalabels.formatter=function(v,ctx){return fl[ctx.dataIndex]||null;};}}})();
 Object.entries(_cfgs).forEach(([id,cfg])=>{const el=document.getElementById(id);if(el)new Chart(el,cfg);});
 <\/script></body></html>`;
 }
